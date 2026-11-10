@@ -76,6 +76,16 @@ button{font-family:var(--f-ui);touch-action:manipulation}
 .leads button{font-family:var(--f-mono);font-size:10px;font-weight:700;border:2px solid #211a00;background:transparent;color:#211a00;border-radius:7px;padding:5px 2px;cursor:pointer;min-height:30px}
 .leads button[aria-pressed="true"]{background:#211a00;color:var(--hi)}
 #mAt{font-size:9.5px;margin-top:5px;line-height:1.3}
+#meter .mrow{display:none;grid-template-columns:1fr 1fr 1fr;gap:4px;margin-top:5px}
+#meter .mrow button{font-family:var(--f-mono);font-size:10.5px;font-weight:800;border:2px solid #211a00;background:transparent;color:#211a00;border-radius:7px;min-height:34px;padding:0 2px;cursor:pointer}
+#meter .mrow #mCr{background:#211a00;color:var(--hi)}
+#meter .mrow #mLead[aria-pressed="true"]{background:#fff;}
+#mAt1{display:none;font-size:9.5px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#meter.compact{width:178px;padding:6px}
+#meter.compact #lcd{min-height:34px;font-size:22px;cursor:pointer}
+#meter.compact .dialwrap,#meter.compact .leads,#meter.compact #bCrank,#meter.compact #mAt{display:none}
+#meter.compact .mrow{display:grid}#meter.compact #mAt1{display:block}
+#meter.compact.lampmode .mrow{grid-template-columns:1fr 1fr}#meter.compact.lampmode #mMode{display:none}
 .crankb{display:block;width:100%;margin-top:6px;font-family:var(--f-mono);font-size:10px;font-weight:800;border:2px solid #211a00;background:#211a00;color:var(--hi);border-radius:7px;min-height:32px;cursor:pointer;letter-spacing:.02em}
 #meter.lampmode .dialwrap{display:none}
 /* шторки и панели */
@@ -188,7 +198,9 @@ body.rotting #toast{bottom:calc(290px + var(--sb))}
 <div id="jobbar"><span id="jobline"></span></div>
 <div id="quest" hidden></div>
 <section id="meter" aria-label="Мультиметр" hidden>
-  <div id="lcd"><span id="lcdV">OFF</span><small id="lcdU"></small></div>
+  <div id="lcd" role="button" tabindex="0" aria-label="Экран прибора: нажми, чтобы открыть или свернуть ручку"><span id="lcdV">OFF</span><small id="lcdU"></small></div>
+  <div class="mrow"><button id="mMode" aria-label="Режим прибора">V⎓</button><button id="mLead" aria-pressed="false">КРАСН.</button><button id="mCr">КРУТИ</button></div>
+  <div id="mAt1"></div>
   <div class="dialwrap">
     <div id="dial" tabindex="0" role="slider" aria-label="Режим мультиметра" aria-valuetext="Выключен"><div class="knob" id="knob"></div></div>
     <div class="dlab" id="dlab"></div>
@@ -1643,7 +1655,7 @@ function setTool(t){
   if(t==="dmm"&&dmmMode==="off")setDial("V");
   if(t!=="jumper")jumperA=null;
   renderTools();changed();
-  const tips={dmm:coarse?"Коснись вывода — красный щуп встанет туда. Чёрный уже на массе. Режим меняй, крутя ручку прибора.":"Наведи руку со щупом на вывод — прибор покажет значение. Клик закрепляет щуп.",lamp:"Зажим контрольки — на массе. Касайся щупом выводов: горит ярко — плюс есть.",
+  const tips={dmm:coarse?(meterCompact?"Коснись вывода — красный щуп встанет туда. Чёрный уже на массе. Режим — кнопка «V⎓» на приборе.":"Коснись вывода — красный щуп встанет туда. Чёрный уже на массе. Режим меняй, крутя ручку прибора."):"Наведи руку со щупом на вывод — прибор покажет значение. Клик закрепляет щуп.",lamp:"Зажим контрольки — на массе. Касайся щупом выводов: горит ярко — плюс есть.",
     wrench:"Коснись болта или гайки — появятся кнопки ↺ и ↻: каждое нажатие — пол-оборота. Можно и крутить пальцем по кругу.",light:"Свети на детали и жгуты. На жгуте держи палец — осмотр займёт секунду.",
     jumper:"Коснись двух точек — перемычка соединит их. Коснись ещё раз любой — снимешь.",sand:"Шкрябай туда-сюда по снятой площадке массы.",spray:"Держи палец на разъединённом разъёме.",solder:"Пайка нужна для найденного обрыва (оранжевая метка)."};
   if(tips[t])say(tips[t]);
@@ -1664,6 +1676,14 @@ function setDial(m){
 })();
 $("lR").onclick=()=>{probes.active="red";updMeter()};
 $("bCrank").onclick=()=>{ac();if(car.eng)stopEngine();else crankNow("helper")};
+$("mCr").onclick=$("bCrank").onclick;
+// компактный прибор на телефоне: экран + одна строка кнопок, чтобы не закрывал детали
+let meterCompact=store("garazh_meter");if(meterCompact===null)meterCompact=!matchMedia("(min-width:960px)").matches;
+function applyCompact(){$("meter").classList.toggle("compact",!!meterCompact)}applyCompact();
+const lcdTap=()=>{meterCompact=!meterCompact;store("garazh_meter",meterCompact);applyCompact();say(meterCompact?"Прибор свёрнут. Режим — кнопка слева, щуп — посередине. Нажми на экран прибора, чтобы открыть ручку.":"Ручка прибора открыта. Нажми на экран прибора, чтобы свернуть.")};
+$("lcd").onclick=lcdTap;$("lcd").onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();lcdTap()}};
+$("mMode").onclick=()=>{const order=["V","R","C","A","off"],i=order.indexOf(dmmMode);setDial(order[(i+1)%order.length])};
+$("mLead").onclick=()=>{probes.active=probes.active==="blk"?"red":"blk";if(probes.active==="blk")say("Следующее касание переставит чёрный щуп.");updMeter()};
 $("lB").onclick=()=>{probes.active="blk";updMeter();say("Теперь касание точки переставит чёрный щуп.")};
 let lastLcd="",lastAmm="";
 function updMeter(){
@@ -1672,9 +1692,13 @@ function updMeter(){
   $("meter").hidden=!(tool==="dmm"||tool==="lamp");$("meter").classList.toggle("lampmode",lampM);
   $("lcdV").textContent=m.txt||"";$("lcdU").textContent=lampM?"":(m.u||"");$("lcd").style.fontSize=lampM?"18px":"";
   $("bCrank").textContent=car.crank?"КРУТИТ…":car.eng?"ПОМОЩНИК: ЗАГЛУШИ":"ПОМОЩНИК: КРУТИ";
+  $("mCr").textContent=car.crank?"КРУТИТ…":car.eng?"ЗАГЛУШИ":"КРУТИ";
+  $("mMode").textContent=(DIAL.find(d=>d[0]===dmmMode)||DIAL[0])[1];
+  $("mLead").textContent=probes.active==="blk"?"ЧЁРН.":"КРАСН.";$("mLead").setAttribute("aria-pressed",probes.active==="blk");
   $("lR").setAttribute("aria-pressed",probes.active==="red");$("lB").setAttribute("aria-pressed",probes.active==="blk");
   const R=probes.red?tpById(probes.red):null,B=probes.blk?tpById(probes.blk):null;
   $("mAt").innerHTML=`Кр: ${R?R.name:hoverTP&&(tool==="dmm"||tool==="lamp")?hoverTP.name:"—"}<br>Чр: ${B?B.name:"—"}`;
+  $("mAt1").textContent=`Кр: ${R?R.name:"—"} · Чр: ${B?B.name:"—"}`;
   const key=(m.txt||"")+(m.u||"");if(key!==lastLcd&&HAND.lcdCv){lastLcd=key;drawLCD(lampM?"":m.txt||"",lampM?"":m.u)}
   beep(!!m.beep);
   if(HAND.items)HAND.items.lampBulb.material.emissiveIntensity=tool==="lamp"&&m.lamp?Math.min(2,m.lamp/6):0;
