@@ -1,0 +1,655 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>[hidden]{display:none!important}</style>
+<title>Стенд автоэлектрика</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;800&family=Unbounded:wght@600;800&display=swap">
+<style>
+/* Верстак: слева схема на «миллиметровке», справа жёлтый мультиметр и карточка детали. Сверху заказ-наряд. */
+:root{
+  --bg:#e9ece6; --paper:#f7f8f3; --grid:#dfe5da; --ink:#1f2b29; --muted:#5d6b67; --line:#2c3a37;
+  --panel:#ffffff; --border:#c9d1c8; --meter:#f0b400; --meter-ink:#2a2100; --lcd:#c7d3b0; --lcd-ink:#15200e;
+  --red:#cf2e25; --black:#1c1c1c; --glow:#ffcc33; --ok:#2f8a4c; --warn:#b86e00; --bad:#c0362c; --accent:#0f6b73;
+  --f-display:"Unbounded","Golos Text",system-ui,sans-serif; --f-body:"Golos Text",system-ui,sans-serif; --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101413; --paper:#161c1b; --grid:#1f2826; --ink:#dfe8e4; --muted:#93a39e; --line:#c4d3ce;
+  --panel:#1a2120; --border:#2d3836; --meter:#e0a800; --meter-ink:#231b00; --lcd:#9fb08a; --lcd-ink:#0d1508;
+  --red:#ff5b4f; --black:#e9e9e9; --glow:#ffd24d; --ok:#5cc47c; --warn:#f0a23a; --bad:#ff6b5e; --accent:#4fc3c9; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#101413; --paper:#161c1b; --grid:#1f2826; --ink:#dfe8e4; --muted:#93a39e; --line:#c4d3ce;
+  --panel:#1a2120; --border:#2d3836; --meter:#e0a800; --meter-ink:#231b00; --lcd:#9fb08a; --lcd-ink:#0d1508;
+  --red:#ff5b4f; --black:#e9e9e9; --glow:#ffd24d; --ok:#5cc47c; --warn:#f0a23a; --bad:#ff6b5e; --accent:#4fc3c9; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 40px}
+.wrap{max-width:1280px;margin:0 auto;display:grid;gap:14px}
+h1,h2,h3{text-wrap:balance;margin:0}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,.tp:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px}
+.brand{font-family:var(--f-display);font-weight:800;font-size:20px;letter-spacing:.01em}
+.brand small{display:block;font-family:var(--f-mono);font-weight:400;font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+.stats{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:12px;border:1px solid var(--border);background:var(--panel);border-radius:999px;padding:4px 10px;font-variant-numeric:tabular-nums}
+.chip b{font-weight:800}
+.job{background:var(--panel);border:1px solid var(--border);border-radius:6px;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:0}
+.job>div{padding:14px 16px;min-width:0}
+.job .left{border-right:1px dashed var(--border)}
+.lbl{font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.car{font-family:var(--f-display);font-weight:600;font-size:17px;margin:2px 0 8px}
+.complaint{font-size:16px;border-left:3px solid var(--meter);padding:2px 0 2px 10px;margin:4px 0 0}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-family:var(--f-mono);font-size:13px;font-variant-numeric:tabular-nums}
+.kv span:nth-child(odd){color:var(--muted)}
+.clock{font-family:var(--f-mono);font-weight:800;font-size:22px;font-variant-numeric:tabular-nums}
+.over{color:var(--bad)}
+.bench{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:14px;align-items:start}
+.scheme{background:var(--paper);border:1px solid var(--border);border-radius:6px;min-width:0;
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);background-size:20px 20px}
+.ctrlbar{display:flex;flex-wrap:wrap;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border);background:var(--panel);border-radius:6px 6px 0 0;align-items:center}
+.tog{border:1px solid var(--border);background:var(--paper);border-radius:4px;padding:6px 10px;font-size:13px;display:inline-flex;gap:8px;align-items:center}
+.tog .led{width:9px;height:9px;border-radius:50%;background:var(--border)}
+.tog[aria-pressed="true"]{border-color:var(--ink)}
+.tog[aria-pressed="true"] .led{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+.tog.batt[aria-pressed="false"] .led{background:var(--bad)}
+.relay{font-family:var(--f-mono);font-size:12px;color:var(--muted);margin-left:auto}
+.svgbox{overflow-x:auto}
+svg.sch{display:block;width:100%;min-width:660px;height:auto}
+.w{fill:none;stroke:var(--line);stroke-width:2.2;stroke-linejoin:round}
+.sym{fill:var(--paper);stroke:var(--line);stroke-width:2}
+.symf{fill:var(--line)}
+.t{fill:var(--ink);font-family:var(--f-mono);font-size:11px}
+.tl{fill:var(--muted);font-family:var(--f-mono);font-size:10px}
+.hit{fill:none;stroke:transparent;stroke-width:18;cursor:pointer}
+.hit:hover{stroke:color-mix(in srgb,var(--accent) 18%,transparent)}
+.hit.sel{stroke:color-mix(in srgb,var(--accent) 30%,transparent)}
+.tp{cursor:pointer}
+.tp circle.d{fill:var(--paper);stroke:var(--accent);stroke-width:2}
+.tp:hover circle.d{fill:var(--accent)}
+.volt{fill:var(--accent);font-family:var(--f-mono);font-size:10px;font-weight:800}
+.blade{transform-box:fill-box;transform-origin:center;animation:spin linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.blade{animation:none!important}}
+.legend{font-size:12px;color:var(--muted);padding:8px 12px 12px;display:flex;flex-wrap:wrap;gap:4px 16px}
+.side{display:grid;gap:14px;min-width:0}
+.meter{background:var(--meter);color:var(--meter-ink);border-radius:18px;padding:14px;box-shadow:inset 0 -6px 0 rgba(0,0,0,.18)}
+.meter .head{display:flex;justify-content:space-between;align-items:center;font-family:var(--f-mono);font-size:11px;font-weight:800;letter-spacing:.1em}
+.lcd{background:var(--lcd);color:var(--lcd-ink);border-radius:8px;margin:8px 0 10px;padding:8px 12px;font-family:var(--f-mono);display:flex;align-items:baseline;justify-content:flex-end;gap:8px;border:3px solid rgba(0,0,0,.35);min-height:74px}
+.lcd .num{font-size:44px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.lcd .unit{font-size:18px;font-weight:600}
+.lcd .flag{font-size:11px;margin-right:auto;align-self:flex-start;font-weight:600}
+.modes{display:flex;gap:6px}
+.mode{flex:1;border:2px solid var(--meter-ink);background:transparent;color:var(--meter-ink);border-radius:8px;padding:6px 0;font-family:var(--f-mono);font-weight:800}
+.mode[aria-pressed="true"]{background:var(--meter-ink);color:var(--meter)}
+.probes{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.probe{border-radius:8px;padding:6px 8px;text-align:left;font-size:12px;border:2px solid transparent;background:rgba(0,0,0,.08);color:var(--meter-ink);min-width:0}
+.probe b{display:block;font-family:var(--f-mono);font-size:11px}
+.probe span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.probe.red b{color:#a3150e}.probe[aria-pressed="true"]{border-color:var(--meter-ink);background:rgba(255,255,255,.35)}
+.quick{margin-top:6px;width:100%;border:1px dashed var(--meter-ink);background:transparent;border-radius:8px;padding:5px;font-size:12px;color:var(--meter-ink)}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:12px 14px;min-width:0}
+.card h3{font-family:var(--f-display);font-weight:600;font-size:14px;margin-bottom:6px}
+.card p{margin:4px 0}
+.acts{display:grid;gap:6px;margin-top:8px}
+.act{border:1px solid var(--border);background:var(--paper);border-radius:4px;padding:7px 10px;text-align:left;font-size:13px;display:flex;justify-content:space-between;gap:10px}
+.act em{font-style:normal;font-family:var(--f-mono);font-size:12px;color:var(--muted);white-space:nowrap}
+.act:hover{border-color:var(--ink)}
+.note{font-size:13px;color:var(--muted)}
+.seen{background:color-mix(in srgb,var(--meter) 16%,transparent);border-radius:4px;padding:6px 8px;font-size:13px;margin-top:6px}
+.log{font-family:var(--f-mono);font-size:12px;max-height:220px;overflow:auto;display:grid;gap:3px}
+.log div{display:grid;grid-template-columns:44px 1fr;gap:6px}
+.log time{color:var(--muted)}
+.log .x{color:var(--bad)}.log .g{color:var(--ok)}
+.bottom{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.big{font-family:var(--f-display);font-weight:600;font-size:14px;border-radius:6px;padding:11px 18px;border:2px solid var(--ink);background:var(--ink);color:var(--paper)}
+.ghost{border:1px solid var(--border);background:var(--panel);border-radius:6px;padding:10px 14px;font-size:14px}
+.train{display:inline-flex;gap:8px;align-items:center;font-size:13px;color:var(--muted)}
+details.help{background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:10px 14px}
+details.help summary{cursor:pointer;font-family:var(--f-display);font-weight:600;font-size:14px}
+.helpgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px 24px;margin-top:10px;font-size:14px}
+.helpgrid h4{margin:0 0 4px;font-size:14px}
+.helpgrid p,.helpgrid li{margin:0 0 4px;max-width:65ch}
+.helpgrid ul{padding-left:18px;margin:0}
+.result{background:var(--panel);border:2px solid var(--ink);border-radius:6px;padding:16px}
+.result h2{font-family:var(--f-display);font-weight:800;font-size:20px;margin-bottom:8px}
+.result .why{border-left:3px solid var(--accent);padding-left:10px;margin:10px 0;max-width:75ch}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:6px;font-size:14px;max-width:min(520px,calc(100% - 32px));z-index:20}
+@media (max-width:900px){.bench{grid-template-columns:minmax(0,1fr)}.job{grid-template-columns:minmax(0,1fr)}.job .left{border-right:0;border-bottom:1px dashed var(--border)}}
+</style>
+
+<div class="wrap">
+  <div class="top">
+    <div class="brand">Стенд автоэлектрика<small>диагностика по схеме · мультиметр · ремонт</small></div>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <section class="job" aria-label="Заказ-наряд">
+    <div class="left">
+      <div class="lbl" id="jobno">Заказ-наряд</div>
+      <div class="car" id="car"></div>
+      <div class="lbl">Жалоба клиента</div>
+      <p class="complaint" id="complaint"></p>
+    </div>
+    <div>
+      <div class="kv">
+        <span>Система</span><span id="sys"></span>
+        <span>Норма времени</span><span id="norm"></span>
+        <span>Оплата работы</span><span id="price"></span>
+        <span>Запчасти</span><span id="parts">0 ₽</span>
+      </div>
+      <div style="margin-top:8px"><span class="lbl">Время на подъёмнике</span><div class="clock" id="clock">0 мин</div></div>
+    </div>
+  </section>
+
+  <div class="bench">
+    <section class="scheme" aria-label="Электрическая схема">
+      <div class="ctrlbar" id="ctrlbar"></div>
+      <div class="svgbox"><svg class="sch" id="svg" viewBox="0 0 960 500" role="img" aria-label="Схема цепи"></svg></div>
+      <div class="legend">
+        <span>Кружок = точка, куда можно поставить щуп</span>
+        <span>Клик по детали или проводу = осмотр и ремонт</span>
+        <span>⏚ все массы соединены с кузовом</span>
+      </div>
+    </section>
+
+    <aside class="side">
+      <div class="meter" aria-label="Мультиметр">
+        <div class="head"><span>МУЛЬТИМЕТР</span><span>CAT III 600V</span></div>
+        <div class="lcd"><span class="flag" id="flag"></span><span class="num" id="num">0.00</span><span class="unit" id="unit">V</span></div>
+        <div class="modes">
+          <button class="mode" id="mV" aria-pressed="true">V ⎓</button>
+          <button class="mode" id="mR" aria-pressed="false">Ω</button>
+        </div>
+        <div class="probes">
+          <button class="probe red" id="pRed" aria-pressed="true"><b>КРАСНЫЙ · V/Ω</b><span id="pRedAt">не стоит</span></button>
+          <button class="probe" id="pBlk" aria-pressed="false"><b>ЧЁРНЫЙ · COM</b><span id="pBlkAt">не стоит</span></button>
+        </div>
+        <button class="quick" id="blkBody">Чёрный щуп на кузов</button>
+      </div>
+
+      <div class="card" id="detail">
+        <h3>Деталь не выбрана</h3>
+        <p class="note">Нажми на деталь или провод на схеме, чтобы осмотреть или отремонтировать.</p>
+      </div>
+
+      <div class="card">
+        <h3>Журнал работ</h3>
+        <div class="log" id="log"></div>
+      </div>
+    </aside>
+  </div>
+
+  <div id="resultBox" hidden></div>
+
+  <div class="bottom">
+    <button class="big" id="deliver">Сдать машину клиенту</button>
+    <button class="ghost" id="newjob">Взять другой заказ</button>
+    <label class="train"><input type="checkbox" id="train"> Учебный режим: показывать напряжение во всех точках (без оценки)</label>
+  </div>
+
+  <details class="help">
+    <summary>Как работает автоэлектрик: короткая шпаргалка</summary>
+    <div class="helpgrid">
+      <div><h4>Порядок диагностики</h4><ul>
+        <li>Сначала подтверди жалобу сам: включи потребитель, посмотри, послушай реле.</li>
+        <li>Открой схему и найди путь тока: АКБ → предохранитель → выключатель/реле → разъём → нагрузка → масса.</li>
+        <li>Иди по цепи с вольтметром, пока 12 В не «пропадут». Неисправность между последней точкой с напряжением и первой без него.</li>
+        <li>Меняй деталь только когда измерение это доказало.</li></ul></div>
+      <div><h4>Падение напряжения</h4><p>Самый сильный приём. Цепь включена, щупы ставишь по обе стороны провода, разъёма или контакта. Исправный участок даёт почти 0 В. Если на разъёме под нагрузкой 2–3 В, там окисел.</p><p>Ориентир: плюсовая сторона до 0,5 В в сумме, масса до 0,2 В.</p></div>
+      <div><h4>Сопротивление</h4><p>Ω меряют только на обесточенной цепи, клемма «−» снята. «OL» значит обрыв. Около 0 Ω на кузов у плюсового провода значит короткое замыкание.</p><p>Холодная лампа звонится примерно на 1/10 от рабочего сопротивления, это нормально.</p></div>
+      <div><h4>Две классические ловушки</h4><p>12 В на обоих контактах лампы: плюс есть, массы нет. Ищи обрыв массы, а не меняй лампу.</p><p>Предохранитель горит сразу после замены: где-то провод замкнут на кузов. Найди КЗ, потом ставь предохранитель.</p></div>
+    </div>
+  </details>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+"use strict";
+/* ---------- Каталог схем ---------- */
+const LAMP = W => +(12.6*12.6/W).toFixed(2);
+const CIRCUITS = {
+  head:{
+    sys:"Ближний свет фар (через реле)", price:2200, norm:60,
+    controls:[{id:"lights",label:"Подрулевой: ближний свет"}],
+    nodes:{
+      BP:[60,300,"+АКБ","Клемма «+» АКБ","l"], BN:[60,430,"−АКБ","Клемма «−» АКБ","l"], BODY:[150,470,"кузов","Кузов (масса)","r"],
+      BUS:[60,80,"шина","Шина «+» блока предохранителей","r"], F1o:[220,80,"F1 вых","F1, выход","b"], K87:[390,80,"87","Реле K1, контакт 87","b"],
+      SPL:[620,80,"разв.","Разветвление жгута фар","t"],
+      XLa:[620,190,"X1 ж","Разъём левой фары X1, сторона жгута","r"], XLb:[620,240,"X1 л","Разъём левой фары X1, сторона лампы","r"], LGa:[620,360,"L −","Минус левой лампы","r"],
+      XRa:[850,190,"X2 ж","Разъём правой фары X2, сторона жгута","r"], XRb:[850,240,"X2 л","Разъём правой фары X2, сторона лампы","r"], RGa:[850,360,"R −","Минус правой лампы","r"],
+      F2o:[220,300,"F2 вых","F2, выход","b"], SWo:[390,300,"пер. вых","Подрулевой переключатель, выход","b"],
+      K86:[500,300,"86","Реле K1, контакт 86","r"], K85:[500,400,"85","Реле K1, контакт 85","r"]
+    },
+    els:[
+      {id:"w_pwr",t:"wire",a:"BP",b:"BUS",R:.004,name:"Силовой провод «+» от АКБ к блоку предохранителей"},
+      {id:"strap",t:"gnd",a:"BN",R:.003,lab:"масса АКБ",name:"Провод массы АКБ — кузов"},
+      {id:"F1",t:"fuse",a:"BUS",b:"F1o",R:.006,rating:15,lab:"F1 15A",name:"Предохранитель F1 15 А (фары)"},
+      {id:"K1c",t:"contact",a:"F1o",b:"K87",R:.005,coil:"K1k",group:"K1",lab:"K1 30→87",name:"Реле K1, силовые контакты 30–87"},
+      {id:"w_head",t:"wire",a:"K87",b:"SPL",R:.012,name:"Провод от реле к фарам (идёт по крылу)"},
+      {id:"w_L",t:"wire",a:"SPL",b:"XLa",R:.006,name:"Провод к левой фаре"},
+      {id:"XL",t:"conn",a:"XLa",b:"XLb",R:.003,lab:"X1",name:"Разъём левой фары X1"},
+      {id:"LL",t:"lamp",a:"XLb",b:"LGa",R:LAMP(55),W:55,lab:"H7 L",name:"Лампа H7 55 Вт, левая",cost:600,min:5},
+      {id:"GL",t:"gnd",a:"LGa",R:.004,lab:"G1",name:"Провод и точка массы левой фары (G1)"},
+      {id:"w_R",t:"wire",a:"SPL",b:"XRa",via:[[850,80]],R:.01,name:"Провод к правой фаре"},
+      {id:"XR",t:"conn",a:"XRa",b:"XRb",R:.003,lab:"X2",name:"Разъём правой фары X2"},
+      {id:"LR",t:"lamp",a:"XRb",b:"RGa",R:LAMP(55),W:55,lab:"H7 R",name:"Лампа H7 55 Вт, правая",cost:600,min:5},
+      {id:"GR",t:"gnd",a:"RGa",R:.004,lab:"G2",name:"Провод и точка массы правой фары (G2)"},
+      {id:"F2",t:"fuse",a:"BP",b:"F2o",R:.01,rating:10,lab:"F2 10A",name:"Предохранитель F2 10 А (управление реле)"},
+      {id:"SW",t:"switch",a:"F2o",b:"SWo",R:.02,ctrl:"lights",lab:"переключатель",name:"Подрулевой переключатель света",cost:3500,min:40},
+      {id:"w_86",t:"wire",a:"SWo",b:"K86",R:.02,name:"Провод от переключателя к реле (86)"},
+      {id:"K1k",t:"coil",a:"K86",b:"K85",R:80,group:"K1",lab:"K1 обм.",name:"Реле K1, обмотка 86–85"},
+      {id:"G85",t:"gnd",a:"K85",R:.01,lab:"G3",name:"Масса реле K1 (G3)"}
+    ],
+    faults:[
+      {els:[["F1","open"]],complaint:"Не горит ближний свет, обе фары. Вчера ещё горел.",see:{F1:"Перемычка предохранителя перегорела."},why:"Перегорел предохранитель F1. На входе F1 было 12,6 В, на выходе 0 В. Короткого замыкания дальше по цепи нет, поэтому замена решает."},
+      {els:[["F1","open"],["w_head","short"]],complaint:"Ехал ночью, обе фары погасли. Сам поменял предохранитель, он сгорел сразу, как включил свет.",see:{F1:"Перемычка перегорела, корпус слегка оплавлен.",w_head:"В районе крыла изоляция перетёрта об кузов, видна медь."},why:"Провод от реле к фарам замкнут на кузов. Новый предохранитель горит сразу при включении. При снятой клемме «−» между этим проводом и кузовом почти 0 Ω вместо OL. Сначала убрать КЗ, потом ставить предохранитель."},
+      {els:[["F2","open"]],complaint:"Не включается ближний свет.",see:{F2:"Перемычка предохранителя перегорела."},why:"Перегорел F2 в цепи управления реле. Реле не щёлкает, на 86 нет напряжения, на выходе F2 0 В."},
+      {els:[["SW","open"]],complaint:"Ближний не включается. Раньше, если покрутить ручку, иногда загорался.",why:"На входе переключателя 12,6 В, на выходе 0 В при включённом свете. Выгорели внутренние контакты переключателя."},
+      {els:[["K1k","open"]],complaint:"Не горит ближний свет, обе фары.",why:"На 86 есть 12,6 В, 85 соединён с массой, но реле не щёлкает. Обмотка реле в обрыве: между 86 и 85 OL вместо примерно 80 Ω."},
+      {els:[["K1c","high",1.3]],complaint:"Фары светят тускло, как свечки. Обе.",why:"Под нагрузкой падение напряжения на контактах реле 30–87 несколько вольт, норма меньше 0,2 В. Контакты подгорели, нужно новое реле."},
+      {els:[["LL","open"]],complaint:"Не горит левая фара.",see:{LL:"Нить накала лампы оборвана."},why:"На разъёме левой лампы 12,6 В относительно кузова, масса в порядке, лампа звонится в OL. Перегорела лампа."},
+      {els:[["XL","high",2.0]],complaint:"Левая фара светит заметно тусклее правой. Пахнет горелым пластиком.",see:{XL:"Пины разъёма потемнели, зелёный налёт окислов, пластик колодки оплавлен."},why:"Под нагрузкой на разъёме X1 падает несколько вольт (между «X1 ж» и «X1 л»). Окислившийся контакт греется и забирает напряжение у лампы."},
+      {els:[["GL","open"]],complaint:"Не горит левая фара. Лампу уже меняли, не помогло.",why:"На обоих выводах лампы 12,6 В относительно кузова: плюс доходит, а массы нет. Обрыв провода массы G1. Лампа была исправна."},
+      {els:[["GL","high",1.6]],complaint:"Левая фара тусклее правой.",see:{GL:"Под клеммой массы G1 слой ржавчины, болт затянут слабо."},why:"Минус левой лампы под нагрузкой несколько вольт относительно кузова, а должен быть почти 0. Плохая масса G1."},
+      {els:[["w_R","open"]],complaint:"Не горит правая фара. Лампу меняли.",why:"На разветвлении жгута 12,6 В, на разъёме X2 со стороны жгута 0 В. Обрыв провода к правой фаре (внутри изоляции, снаружи не видно)."},
+      {els:[["G85","open"]],complaint:"Перестал включаться ближний свет.",why:"На 86 есть 12,6 В, но на 85 тоже 12,6 В относительно кузова: обмотка целая, а массы у реле нет. Реле не срабатывает."}
+    ]
+  },
+  fan:{
+    sys:"Вентилятор радиатора", price:2600, norm:70,
+    controls:[{id:"ign",label:"Зажигание"},{id:"hot",label:"Двигатель прогрет до 98 °C"}],
+    nodes:{
+      BP:[60,300,"+АКБ","Клемма «+» АКБ","l"], BN:[60,430,"−АКБ","Клемма «−» АКБ","l"], BODY:[150,470,"кузов","Кузов (масса)","r"],
+      BUS:[60,80,"шина","Шина «+» блока предохранителей","r"], F1o:[220,80,"F1 вых","F1, выход","b"], K87:[390,80,"87","Реле K2, контакт 87","b"],
+      XMa:[760,170,"X5 ж","Разъём вентилятора X5, сторона жгута","r"], XMb:[760,220,"X5 м","Разъём вентилятора X5, сторона мотора","r"], MGa:[760,350,"M −","Минус мотора вентилятора","r"],
+      F2o:[220,300,"F2 вых","F2, выход","b"], IGo:[390,300,"IG","Замок зажигания, выход IG","b"],
+      K86:[500,300,"86","Реле K2, контакт 86","r"], K85:[500,400,"85","Реле K2, контакт 85","b"], TSo:[650,400,"датч.","Датчик включения вентилятора, корпус","b"]
+    },
+    els:[
+      {id:"w_pwr",t:"wire",a:"BP",b:"BUS",R:.004,name:"Силовой провод «+» от АКБ к блоку предохранителей"},
+      {id:"strap",t:"gnd",a:"BN",R:.003,lab:"масса АКБ",name:"Провод массы АКБ — кузов"},
+      {id:"F1",t:"fuse",a:"BUS",b:"F1o",R:.003,rating:30,lab:"F1 30A",name:"Предохранитель F1 30 А (вентилятор)"},
+      {id:"K2c",t:"contact",a:"F1o",b:"K87",R:.004,coil:"K2k",group:"K2",lab:"K2 30→87",name:"Реле K2, силовые контакты 30–87"},
+      {id:"w_fan",t:"wire",a:"K87",b:"XMa",via:[[760,80]],R:.01,name:"Провод от реле к вентилятору"},
+      {id:"XM",t:"conn",a:"XMa",b:"XMb",R:.003,lab:"X5",name:"Разъём вентилятора X5"},
+      {id:"M",t:"motor",a:"XMb",b:"MGa",R:1.0,lab:"M",name:"Мотор вентилятора радиатора",cost:9000,min:45},
+      {id:"GM",t:"gnd",a:"MGa",R:.004,lab:"G4",name:"Провод и точка массы вентилятора (G4)"},
+      {id:"F2",t:"fuse",a:"BP",b:"F2o",R:.01,rating:10,lab:"F2 10A",name:"Предохранитель F2 10 А (зажигание)"},
+      {id:"IG",t:"switch",a:"F2o",b:"IGo",R:.02,ctrl:"ign",lab:"замок",name:"Замок зажигания (контактная группа)",cost:2800,min:50},
+      {id:"w_86",t:"wire",a:"IGo",b:"K86",R:.02,name:"Провод IG к реле (86)"},
+      {id:"K2k",t:"coil",a:"K86",b:"K85",R:80,group:"K2",lab:"K2 обм.",name:"Реле K2, обмотка 86–85"},
+      {id:"TS",t:"thermo",a:"K85",b:"TSo",R:.05,ctrl:"hot",lab:"t° 92/87",name:"Датчик включения вентилятора (термовыключатель 92 °C)",cost:1500,min:20},
+      {id:"GT",t:"gnd",a:"TSo",R:.01,lab:"блок",name:"Масса датчика через блок цилиндров"}
+    ],
+    faults:[
+      {els:[["F1","open"]],complaint:"В пробке стрелка температуры уходит вверх, вентилятор не включается.",see:{F1:"Перемычка предохранителя перегорела."},why:"Перегорел F1 30 А. Реле щёлкает, но на входе 30 реле 0 В."},
+      {els:[["F1","open"],["w_fan","short"]],complaint:"Вентилятор не работает. Предохранитель меняли дважды, сгорает.",see:{F1:"Перемычка перегорела.",w_fan:"Жгут к вентилятору пережат кронштейном радиатора, изоляция прорезана."},why:"Провод от реле к вентилятору замкнут на кузов. Замер при снятой клемме: провод — кузов около 0 Ω. Сначала ремонт провода, потом предохранитель."},
+      {els:[["M","open"]],complaint:"Вентилятор радиатора не включается, мотор перегревается в пробках.",see:{M:"Снаружи мотор целый, крыльчатка крутится рукой свободно."},why:"На разъёме X5 со стороны мотора 12,6 В, минус мотора соединён с массой (0 В), но мотор стоит. Мотор в обрыве (износ щёток): сопротивление OL вместо ~1 Ω."},
+      {els:[["XM","high",1.2]],complaint:"Вентилятор крутится вяло, хуже, чем раньше.",see:{XM:"Разъём X5 почернел, один пин оплавлен."},why:"Под нагрузкой на разъёме X5 падение несколько вольт. Мотору не хватает напряжения."},
+      {els:[["GM","high",1.0]],complaint:"Вентилятор крутит медленно, машина греется летом.",see:{GM:"Точка массы G4 у лонжерона в ржавчине."},why:"Минус мотора под нагрузкой несколько вольт относительно кузова. Плохая масса G4."},
+      {els:[["TS","open"]],complaint:"Летом в пробке закипает, вентилятор не включается вообще.",why:"Зажигание включено, мотор прогрет, на 86 есть 12,6 В, но на 85 тоже 12,6 В: датчик не замыкает на массу. Неисправен термовыключатель."},
+      {els:[["TS","stuck"]],complaint:"Вентилятор крутит постоянно, даже на холодном двигателе. Включаешь зажигание — сразу шумит.",why:"На холодном двигателе на 85 около 0 В: датчик замкнут всегда. Термовыключатель залип."},
+      {els:[["K2k","open"]],complaint:"Вентилятор радиатора не включается.",why:"На 86 12,6 В, на 85 масса через прогретый датчик, реле не щёлкает. Обмотка K2 в обрыве (OL между 86 и 85)."},
+      {els:[["K2c","high",1.5]],complaint:"Вентилятор еле крутится.",why:"Реле щёлкает, но под нагрузкой на контактах 30–87 падают вольты. Подгорели контакты реле."},
+      {els:[["w_fan","open"]],complaint:"Вентилятор не включается, реле щёлкает.",why:"На 87 реле 12,6 В, на разъёме X5 со стороны жгута 0 В. Обрыв провода от реле к вентилятору."},
+      {els:[["F2","open"]],complaint:"Вентилятор перестал работать. Ещё не горит пара лампочек на щитке.",see:{F2:"Перемычка предохранителя перегорела."},why:"Нет питания IG на обмотку реле: перегорел F2."}
+    ]
+  },
+  stop:{
+    sys:"Стоп-сигналы", price:1800, norm:50,
+    controls:[{id:"brake",label:"Педаль тормоза нажата"}],
+    nodes:{
+      BP:[60,300,"+АКБ","Клемма «+» АКБ","l"], BN:[60,430,"−АКБ","Клемма «−» АКБ","l"], BODY:[150,470,"кузов","Кузов (масса)","r"],
+      BUS:[60,80,"шина","Шина «+» блока предохранителей","r"], F1o:[220,80,"F7 вых","F7, выход (вход выключателя)","b"], BSo:[390,80,"выкл. вых","Выключатель стоп-сигнала, выход","b"],
+      SPL:[530,80,"разв.","Разветвление жгута в багажнике","t"],
+      XLa:[530,190,"X7 ж","Разъём левого фонаря X7, сторона жгута","r"], XLb:[530,240,"X7 ф","Разъём левого фонаря X7, сторона фонаря","r"], LGa:[530,360,"L −","Минус левой лампы","r"],
+      CC:[700,190,"доп. +","Доп. стоп-сигнал, плюс","r"], CGa:[700,360,"доп. −","Доп. стоп-сигнал, минус","r"],
+      XRa:[870,190,"X8 ж","Разъём правого фонаря X8, сторона жгута","r"], XRb:[870,240,"X8 ф","Разъём правого фонаря X8, сторона фонаря","r"], RGa:[870,360,"R −","Минус правой лампы","r"]
+    },
+    els:[
+      {id:"w_pwr",t:"wire",a:"BP",b:"BUS",R:.004,name:"Силовой провод «+» от АКБ к блоку предохранителей"},
+      {id:"strap",t:"gnd",a:"BN",R:.003,lab:"масса АКБ",name:"Провод массы АКБ — кузов"},
+      {id:"F1",t:"fuse",a:"BUS",b:"F1o",R:.01,rating:10,lab:"F7 10A",name:"Предохранитель F7 10 А (стоп-сигналы)"},
+      {id:"BS",t:"switch",a:"F1o",b:"BSo",R:.02,ctrl:"brake",lab:"выкл. стопа",name:"Выключатель стоп-сигнала (лягушка на педали)",cost:800,min:15},
+      {id:"w_main",t:"wire",a:"BSo",b:"SPL",R:.03,name:"Провод к задним фонарям (через салон под порогом)"},
+      {id:"w_L",t:"wire",a:"SPL",b:"XLa",R:.006,name:"Провод к левому фонарю"},
+      {id:"XL",t:"conn",a:"XLa",b:"XLb",R:.003,lab:"X7",name:"Разъём левого фонаря X7"},
+      {id:"LL",t:"lamp",a:"XLb",b:"LGa",R:LAMP(21),W:21,lab:"P21W L",name:"Лампа P21W, левый стоп",cost:120,min:5},
+      {id:"GL",t:"gnd",a:"LGa",R:.005,lab:"G7",name:"Провод и точка массы левого фонаря (G7)"},
+      {id:"w_C",t:"wire",a:"SPL",b:"CC",via:[[700,80]],R:.02,name:"Провод к дополнительному стоп-сигналу (через крышку багажника)"},
+      {id:"LC",t:"lamp",a:"CC",b:"CGa",R:LAMP(5),W:5,lab:"W5W",name:"Лампа W5W, доп. стоп-сигнал",cost:80,min:10},
+      {id:"GC",t:"gnd",a:"CGa",R:.01,lab:"G9",name:"Масса доп. стоп-сигнала (G9)"},
+      {id:"w_R",t:"wire",a:"SPL",b:"XRa",via:[[870,80]],R:.01,name:"Провод к правому фонарю"},
+      {id:"XR",t:"conn",a:"XRa",b:"XRb",R:.003,lab:"X8",name:"Разъём правого фонаря X8"},
+      {id:"LR",t:"lamp",a:"XRb",b:"RGa",R:LAMP(21),W:21,lab:"P21W R",name:"Лампа P21W, правый стоп",cost:120,min:5},
+      {id:"GR",t:"gnd",a:"RGa",R:.005,lab:"G8",name:"Провод и точка массы правого фонаря (G8)"}
+    ],
+    faults:[
+      {els:[["F1","open"]],complaint:"Не горят стоп-сигналы. Сзади мигали фарами.",see:{F1:"Перемычка предохранителя перегорела."},why:"Перегорел F7. На входе 12,6 В, на выходе 0 В."},
+      {els:[["F1","open"],["w_main","short"]],complaint:"Стопы не горят. Предохранитель горит сразу, как нажимаешь тормоз.",see:{F1:"Перемычка перегорела.",w_main:"Под порогом жгут пережат панелью, изоляция прорезана саморезом."},why:"Провод к задним фонарям замкнут на кузов под порогом. При снятой клемме: провод — кузов около 0 Ω. Ремонт провода, потом предохранитель."},
+      {els:[["BS","open"]],complaint:"Не горят стоп-сигналы.",why:"На входе выключателя 12,6 В, при нажатой педали на выходе 0 В. Выключатель стоп-сигнала неисправен."},
+      {els:[["BS","stuck"]],complaint:"Стоп-сигналы горят постоянно, за ночь садится аккумулятор.",see:{BS:"Пластиковый упор педали сломан, шток выключателя не нажимается педалью."},why:"Без нажатия педали на выходе выключателя 12,6 В. Упор сломан, выключатель всегда замкнут."},
+      {els:[["LL","open"]],complaint:"Не горит левый стоп-сигнал.",see:{LL:"Нить «стоп» в лампе оборвана."},why:"На разъёме лампы 12,6 В, масса в норме, лампа звонится в OL."},
+      {els:[["LC","open"]],complaint:"Не горит верхний стоп-сигнал. Остальные горят.",see:{LC:"Лампа W5W почернела, нить оборвана."},why:"На плюсе доп. стопа 12,6 В, лампа в обрыве."},
+      {els:[["XR","high",3.0]],complaint:"Правый стоп горит тускло.",see:{XR:"Внутрь фонаря попадала вода: контакты X8 в белом налёте."},why:"При нажатом тормозе на разъёме X8 падают вольты. Окисленные контакты."},
+      {els:[["GL","open"]],complaint:"Левый стоп не горит. Лампу и фонарь меняли.",why:"На обоих выводах лампы 12,6 В относительно кузова. Обрыв провода массы G7."},
+      {els:[["w_R","open"]],complaint:"Правый стоп не горит, лампа новая.",why:"На разветвлении 12,6 В, на X8 со стороны жгута 0 В. Обрыв провода к правому фонарю."},
+      {els:[["w_C","open"]],complaint:"Перестал гореть верхний стоп-сигнал.",see:{w_C:"В гофре между кузовом и крышкой багажника провод переломлен, изоляция целая, но провод гнётся «как резинка»."},why:"Провод в гофре крышки багажника ломается от открывания. На плюсе доп. стопа 0 В при 12,6 В на разветвлении."}
+    ]
+  }
+};
+const CARS=["Lada Vesta 2019","Kia Rio 2017","Hyundai Solaris 2018","Chery Tiggo 4 Pro 2023","Haval Jolion 2022","Toyota Camry 2016","Geely Coolray 2021","Lada Granta 2020","Volkswagen Polo 2015","Changan CS35 Plus 2022"];
+const INSPECT_MIN={fuse:2,wire:6,conn:5,lamp:4,gnd:4,switch:8,contact:2,coil:2,motor:6,thermo:4};
+const OK_SEE={fuse:"Перемычка целая.",wire:"Снаружи изоляция целая, жгут закреплён.",conn:"Защёлка на месте, пины чистые.",lamp:"Колба чистая, нить на вид целая.",gnd:"Клемма затянута, видимой ржавчины нет.",switch:"Снаружи корпус целый. Что внутри, не видно.",contact:"Корпус реле целый, внутрь не заглянуть.",coil:"Корпус реле целый, внутрь не заглянуть.",motor:"Снаружи мотор целый, крыльчатка крутится рукой свободно.",thermo:"Датчик сухой, разъём на месте. Что внутри, не видно."};
+function repairsFor(el){
+  switch(el.t){
+    case "fuse":return [{label:"Заменить предохранитель",cost:50,min:2}];
+    case "wire":return [{label:"Восстановить провод (вставка, пайка, термоусадка)",cost:150,min:25}];
+    case "conn":return [{label:"Почистить и обжать контакты",cost:100,min:15},{label:"Заменить колодку с пинами",cost:600,min:30}];
+    case "gnd":return [{label:"Зачистить точку массы, восстановить провод",cost:50,min:12}];
+    case "contact":case "coil":return [{label:"Заменить реле "+el.group,cost:900,min:3,group:el.group}];
+    default:return [{label:"Заменить: "+el.name.split(" (")[0],cost:el.cost||500,min:el.min||10}];
+  }
+}
+
+/* ---------- Состояние ---------- */
+let S=null;
+const OPEN=1e9;
+const $=id=>document.getElementById(id);
+function rnd(a){return a[Math.floor(Math.random()*a.length)]}
+function store(k,v){try{if(v===undefined){return JSON.parse(localStorage.getItem(k)||"null")}localStorage.setItem(k,JSON.stringify(v))}catch(e){return null}}
+let STATS=store("autoel_stats")||{jobs:0,fixed:0,back:0,money:0,wasted:0,minutes:0};
+
+function newJob(){
+  const key=rnd(Object.keys(CIRCUITS)), C=CIRCUITS[key], f=rnd(C.faults);
+  const st={};C.els.forEach(e=>st[e.id]={s:"ok"});
+  f.els.forEach(([id,s,R])=>st[id]={s,R});
+  const ctrl={};C.controls.forEach(c=>ctrl[c.id]=false);
+  S={key,C,fault:f,st,ctrl,batt:true,mode:"V",red:null,blk:null,active:"red",t:0,parts:0,wasted:0,need:0,sel:null,seen:{},log:[],done:false,train:$("train").checked,trainUsed:$("train").checked,
+     car:rnd(CARS),km:(30+Math.floor(Math.random()*190))*1000,no:1000+Math.floor(Math.random()*9000)};
+  $("resultBox").hidden=true;
+  log("Машина на подъёмнике. Клемма АКБ подключена.");
+  simulate();render();
+}
+
+/* ---------- Электрика: узловой анализ ---------- */
+function effR(el,mode,closed){
+  const s=S.st[el.id];
+  if(el.t==="strap"||el.id==="strap"){if(!S.batt)return OPEN}
+  if(s.s==="open"||s.s==="blown")return OPEN;
+  let R=el.R;
+  if(s.s==="high")R=s.R;
+  if(el.t==="switch"||el.t==="thermo"){
+    const on=s.s==="stuck"?true:S.ctrl[el.ctrl];
+    if(!on)return OPEN;
+  }
+  if(el.t==="contact"&&!closed[el.id])return OPEN;
+  if(el.t==="lamp"&&mode==="R")R=R*0.12;
+  return R;
+}
+function gauss(A,b){
+  const n=b.length;
+  for(let c=0;c<n;c++){
+    let p=c;for(let r=c+1;r<n;r++)if(Math.abs(A[r][c])>Math.abs(A[p][c]))p=r;
+    [A[c],A[p]]=[A[p],A[c]];[b[c],b[p]]=[b[p],b[c]];
+    const d=A[c][c]||1e-30;
+    for(let r=c+1;r<n;r++){const f=A[r][c]/d;if(!f)continue;for(let k=c;k<n;k++)A[r][k]-=f*A[c][k];b[r]-=f*b[c]}
+  }
+  const x=new Array(n).fill(0);
+  for(let r=n-1;r>=0;r--){let s=b[r];for(let k=r+1;k<n;k++)s-=A[r][k]*x[k];x[r]=s/(A[r][r]||1e-30)}
+  return x;
+}
+function solve(mode,closed,ref,inj){
+  const C=S.C, ids=Object.keys(C.nodes), idx={};let n=0;
+  ids.forEach(id=>{if(id!==ref)idx[id]=n++});
+  const A=Array.from({length:n},()=>new Array(n).fill(0)), b=new Array(n).fill(0);
+  const stamp=(p,q,g)=>{const i=idx[p],j=idx[q];if(i!==undefined)A[i][i]+=g;if(j!==undefined)A[j][j]+=g;if(i!==undefined&&j!==undefined){A[i][j]-=g;A[j][i]-=g}};
+  ids.forEach(id=>stamp(id,ref,1e-11));
+  C.els.forEach(el=>{
+    const R=effR(el,mode,closed);if(R>=OPEN)return;
+    stamp(el.a,el.t==="gnd"?"BODY":el.b,1/R);
+    if(S.st[el.id].s==="short")stamp(el.b,"BODY",20);
+  });
+  stamp("BP","BN",50);
+  if(mode==="V"&&S.batt){if(idx.BP!==undefined)b[idx.BP]+=12.6*50}
+  if(inj){if(idx[inj]!==undefined)b[idx[inj]]+=1e-3}
+  const x=gauss(A,b), V={};ids.forEach(id=>V[id]=id===ref?0:x[idx[id]]);
+  return V;
+}
+function simulateV(){
+  const closed={};let V;
+  for(let it=0;it<6;it++){
+    V=solve("V",closed,"BN");let ch=false;
+    S.C.els.forEach(el=>{if(el.t!=="contact")return;const coil=S.C.els.find(e=>e.id===el.coil);const R=effR(coil,"V",closed);
+      const on=R<OPEN&&Math.abs(V[coil.a]-V[coil.b])/R>0.085;if(!!closed[el.id]!==on){closed[el.id]=on;ch=true}});
+    if(!ch)break;
+  }
+  return {V,closed};
+}
+function simulate(){
+  let r=simulateV();
+  // предохранители
+  let blew=false;
+  S.C.els.forEach(el=>{if(el.t!=="fuse"||S.st[el.id].s!=="ok")return;const I=Math.abs(r.V[el.a]-r.V[el.b])/el.R;if(I>el.rating*2.5){S.st[el.id]={s:"blown"};blew=el}});
+  if(blew){toast("Хлоп! Сгорел "+blew.lab+". Ток был намного выше номинала.");log("Сгорел "+blew.lab+" при включении.","x");r=simulateV()}
+  S.V=r.V;S.closed=r.closed;
+}
+function readMeter(){
+  if(!S.red||!S.blk)return {num:S.mode==="V"?"0.00":"OL",unit:S.mode==="V"?"V":"Ω",flag:"щупы не на месте"};
+  if(S.mode==="V"){
+    let v=S.V[S.red]-S.V[S.blk];v+=(Math.random()-.5)*0.008;if(Math.abs(v)<0.005)v=0;
+    return {num:v.toFixed(2),unit:"V",flag:"DC"};
+  }
+  if(S.batt)return {num:"Err",unit:"",flag:"цепь под напряжением"};
+  const V=solve("R",{},S.blk,S.red);let r=V[S.red]/1e-3+0.2;
+  if(r>2e7)return {num:"OL",unit:"Ω",flag:"обрыв"};
+  if(r<200)return {num:r.toFixed(1),unit:"Ω",flag:""};
+  if(r<2e5)return {num:(r/1000).toFixed(2),unit:"kΩ",flag:""};
+  return {num:(r/1e6).toFixed(2),unit:"MΩ",flag:""};
+}
+
+/* ---------- Действия ---------- */
+function spend(m){S.t+=m}
+function log(msg,cls){S.log.unshift({t:S.t,msg,cls})}
+function toast(m){const t=$("toast");t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,3200)}
+function placeProbe(id){
+  if(S.done)return;
+  S[S.active]=id;spend(0.5);
+  S.active=S.active==="red"?"blk":"red";
+  const m=readMeter();
+  if(S.red&&S.blk)log(`${S.mode==="V"?"V":"Ω"}: ${nodeShort(S.red)} → ${nodeShort(S.blk)} = ${m.num} ${m.unit}`);
+  render();
+}
+function nodeShort(id){return S.C.nodes[id][2]}
+function nodeFull(id){return S.C.nodes[id][3]}
+function toggleCtrl(id){if(S.done)return;S.ctrl[id]=!S.ctrl[id];spend(0.2);const c=S.C.controls.find(c=>c.id===id);log(`${c.label}: ${S.ctrl[id]?"вкл":"выкл"}`);simulate();render()}
+function toggleBatt(){if(S.done)return;S.batt=!S.batt;spend(2);log(S.batt?"Клемма «−» АКБ подключена.":"Клемма «−» АКБ снята, цепь обесточена.");simulate();render()}
+function inspect(id){
+  const el=S.C.els.find(e=>e.id===id);spend(INSPECT_MIN[el.t]||3);
+  const s=S.st[id];let txt;
+  if(s.s==="blown")txt="Перемычка перегорела, свежий нагар.";
+  else if(s.s!=="ok"&&S.fault.see&&S.fault.see[id])txt=S.fault.see[id];
+  else txt=OK_SEE[el.t];
+  S.seen[id]=txt;log(`Осмотр: ${el.lab||el.name.split(" (")[0]}. ${txt}`);render();
+}
+function repair(id,ri){
+  const el=S.C.els.find(e=>e.id===id), r=repairsFor(el)[ri];
+  if(S.batt&&el.t!=="fuse"&&el.t!=="contact"&&el.t!=="coil"){toast("Перед ремонтом проводки сними клемму «−» АКБ.");return}
+  const targets=r.group?S.C.els.filter(e=>e.group===r.group):[el];
+  const faulty=targets.some(e=>S.st[e.id].s!=="ok");
+  targets.forEach(e=>S.st[e.id]={s:"ok"});
+  spend(r.min);S.parts+=r.cost;if(faulty)S.need+=r.cost;else S.wasted+=r.cost;
+  delete S.seen[id];
+  log(`${r.label}: −${r.cost} ₽, ${r.min} мин.`,faulty?"g":"");
+  simulate();render();
+}
+function deliver(){
+  if(S.done)return;
+  if(!S.batt){toast("Клемма «−» АКБ снята. Подключи её и проверь работу перед сдачей.");return}
+  const fixed=S.C.els.every(e=>S.st[e.id].s==="ok");
+  S.done=true;
+  const C=S.C;
+  const labor=fixed?C.price:0;
+  const profit=labor-S.wasted-(fixed?0:C.price*0.3);
+  const hrs=Math.max(S.t,1)/60, rate=profit/hrs;
+  let stars=0;
+  if(fixed){stars=3;if(S.wasted===0)stars++;if(S.t<=C.norm)stars++;}
+  if(!S.trainUsed){
+    STATS.jobs++;if(fixed)STATS.fixed++;else STATS.back++;STATS.money+=Math.round(profit);STATS.wasted+=S.wasted;STATS.minutes+=Math.round(S.t);store("autoel_stats",STATS);
+  }
+  const box=$("resultBox");box.hidden=false;
+  box.innerHTML=`<div class="result">
+    <h2>${fixed?"Машина исправна, клиент уехал довольный":"Клиент вернулся: неисправность осталась"}</h2>
+    <div class="kv">
+      <span>Оценка</span><span>${S.trainUsed?"учебный режим, без оценки":(fixed?"★".repeat(stars)+"☆".repeat(5-stars):"☆☆☆☆☆")}</span>
+      <span>Время</span><span class="${S.t>C.norm?"over":""}">${fmtT(S.t)} при норме ${C.norm} мин</span>
+      <span>Оплата работы</span><span>${labor} ₽</span>
+      <span>Нужные запчасти</span><span>${S.need} ₽ (оплатил клиент)</span>
+      <span>Лишние запчасти</span><span class="${S.wasted?"over":""}">${S.wasted} ₽ (за твой счёт)</span>
+      ${fixed?"":`<span>Штраф за возврат</span><span class="over">${Math.round(C.price*0.3)} ₽</span>`}
+      <span>Итого заработал</span><span><b>${Math.round(profit)} ₽</b> · ${Math.round(rate)} ₽/час</span>
+    </div>
+    <div class="why"><div class="lbl">Что было на самом деле</div>${S.fault.why}</div>
+    <button class="big" id="next">Следующий заказ</button></div>`;
+  $("next").onclick=newJob;
+  log(fixed?"Машина сдана, всё работает.":"Машина сдана с неисправностью.",fixed?"g":"x");
+  render();box.scrollIntoView({behavior:"smooth",block:"start"});
+}
+function fmtT(m){m=Math.round(m);return m<60?m+" мин":Math.floor(m/60)+" ч "+String(m%60).padStart(2,"0")+" мин"}
+
+/* ---------- Отрисовка схемы ---------- */
+const NS="http://www.w3.org/2000/svg";
+function P(id){const n=S.C.nodes[id];return {x:n[0],y:n[1]}}
+function pts(el){const a=P(el.a);const b=el.t==="gnd"?{x:a.x,y:a.y+46}:P(el.b);return [a,...(el.via||[]).map(v=>({x:v[0],y:v[1]})),b]}
+function lampBright(el){const V=Math.abs(S.V[el.a]-S.V[el.b]);const P=V*V/el.R;return Math.min(1,Math.pow(P/el.W,1.4))}
+function motorSpeed(el){const V=Math.abs(S.V[el.a]-S.V[el.b]);return Math.max(0,(V-1.5)/11)}
+function drawScheme(){
+  const C=S.C;let h="";
+  // АКБ
+  const bp=P("BP"),bn=P("BN"),my=(bp.y+bn.y)/2;
+  h+=`<g class="hitg" data-el="__batt"><polyline class="w" points="${bp.x},${bp.y} ${bp.x},${my-8}"/><polyline class="w" points="${bn.x},${my+8} ${bn.x},${bn.y}"/>
+    <line x1="${bp.x-20}" y1="${my-8}" x2="${bp.x+20}" y2="${my-8}" stroke="var(--line)" stroke-width="3"/>
+    <line x1="${bp.x-10}" y1="${my+8}" x2="${bp.x+10}" y2="${my+8}" stroke="var(--line)" stroke-width="6"/>
+    <text class="t" x="${bp.x+26}" y="${my-2}">АКБ</text><text class="tl" x="${bp.x+26}" y="${my+11}">12,6 В</text>
+    <text class="t" x="${bp.x-34}" y="${my-4}">+</text>
+    ${S.batt?"":`<text class="t" x="${bn.x+14}" y="${bn.y+30}" fill="var(--bad)" style="fill:var(--bad)">клемма снята</text>`}
+    <polyline class="hit" points="${bp.x},${bp.y+10} ${bn.x},${bn.y-10}"/></g>`;
+  C.els.forEach(el=>{
+    const p=pts(el);const s1=p[p.length-2],s2=p[p.length-1];
+    const mx=(s1.x+s2.x)/2,my=(s1.y+s2.y)/2,horiz=Math.abs(s1.y-s2.y)<1;
+    const line=p.map(q=>q.x+","+q.y).join(" ");
+    let g=`<polyline class="w" points="${line}"/>`;
+    const lab=el.lab?(horiz?`<text class="t" x="${mx}" y="${my-16}" text-anchor="middle">${el.lab}</text>`:`<text class="t" x="${mx+22}" y="${my+4}">${el.lab}</text>`):"";
+    const rot=horiz?"":` transform="rotate(90 ${mx} ${my})"`;
+    switch(el.t){
+      case "fuse":g+=`<g${rot}><rect class="sym" x="${mx-18}" y="${my-7}" width="36" height="14" rx="2"/><line x1="${mx-18}" y1="${my}" x2="${mx+18}" y2="${my}" stroke="var(--line)" stroke-width="1.4"/></g>`;break;
+      case "switch":case "thermo":case "contact":{
+        const on=el.t==="contact"?!!S.closed[el.id]:(S.ctrl[el.ctrl]);
+        g+=`<g${rot}><rect x="${mx-18}" y="${my-6}" width="36" height="12" fill="var(--paper)"/><circle class="symf" cx="${mx-14}" cy="${my}" r="3"/><circle class="symf" cx="${mx+14}" cy="${my}" r="3"/>
+          <line x1="${mx-14}" y1="${my}" x2="${mx+14}" y2="${on?my:my-14}" stroke="var(--line)" stroke-width="2.4"/>
+          ${el.t==="thermo"?`<text class="tl" x="${mx-6}" y="${my+16}">t°</text>`:""}${el.t==="contact"?`<line x1="${mx}" y1="${on?my-2:my-8}" x2="${mx}" y2="${my+16}" stroke="var(--line)" stroke-dasharray="3 3"/>`:""}</g>`;break;}
+      case "coil":g+=`<g${rot}><rect class="sym" x="${mx-18}" y="${my-9}" width="36" height="18"/><line x1="${mx-18}" y1="${my+9}" x2="${mx+18}" y2="${my-9}" stroke="var(--line)" stroke-width="1.4"/></g>`;break;
+      case "conn":g+=`<g${rot}><rect x="${mx-12}" y="${my-9}" width="24" height="18" fill="var(--paper)"/><path d="M${mx-10},${my-7} L${mx-3},${my} L${mx-10},${my+7} M${mx+3},${my-7} L${mx+10},${my} L${mx+3},${my+7}" fill="none" stroke="var(--line)" stroke-width="2"/></g>`;break;
+      case "lamp":{const b=lampBright(el);
+        g+=`<circle cx="${mx}" cy="${my}" r="${16+b*10}" fill="var(--glow)" opacity="${(b*0.45).toFixed(2)}"/><circle class="sym" cx="${mx}" cy="${my}" r="16" style="fill:color-mix(in srgb,var(--glow) ${Math.round(b*100)}%,var(--paper))"/>
+          <path d="M${mx-11},${my-11} L${mx+11},${my+11} M${mx+11},${my-11} L${mx-11},${my+11}" stroke="var(--line)" stroke-width="1.6"/>`;break;}
+      case "motor":{const sp=motorSpeed(el);
+        g+=`<circle class="sym" cx="${mx}" cy="${my}" r="19"/><text class="t" x="${mx}" y="${my+4}" text-anchor="middle" style="font-weight:800">M</text>
+          <g class="blade" style="animation-duration:${sp>0.02?(0.25/sp).toFixed(2)+"s":"0s"};animation-play-state:${sp>0.02?"running":"paused"}"><path d="M${mx+34},${my} q12,-14 0,-26 q-6,10 0,26 M${mx+34},${my} q12,14 0,26 q-6,-10 0,-26" fill="var(--muted)" opacity=".7"/></g>
+          <text class="tl" x="${mx+52}" y="${my+4}">${Math.round(sp*2400)} об/мин</text>`;break;}
+      case "gnd":{const e=s2;g+=`<path d="M${e.x-12},${e.y} H${e.x+12} M${e.x-7},${e.y+5} H${e.x+7} M${e.x-2},${e.y+10} H${e.x+2}" stroke="var(--line)" stroke-width="2"/>`;
+        g=g+`<text class="t" x="${e.x+16}" y="${e.y+4}">${el.lab}</text>`;break;}
+    }
+    if(el.t==="gnd")h+=`<g data-el="${el.id}">${g}<polyline class="hit${S.sel===el.id?" sel":""}" points="${line}"/></g>`;
+    else h+=`<g data-el="${el.id}">${g}${lab}<polyline class="hit${S.sel===el.id?" sel":""}" points="${line}"/></g>`;
+  });
+  // корпус
+  const bd=P("BODY");
+  h+=`<path d="M${bd.x-12},${bd.y} H${bd.x+12} M${bd.x-7},${bd.y+5} H${bd.x+7} M${bd.x-2},${bd.y+10} H${bd.x+2}" stroke="var(--line)" stroke-width="2"/>`;
+  // точки
+  Object.keys(C.nodes).forEach(id=>{
+    const [x,y,sh,full,side]=C.nodes[id];
+    const tx=side==="l"?x-12:side==="r"?x+12:x, ty=side==="t"?y-12:side==="b"?y+22:y+4, an=side==="l"?"end":side==="r"?"start":"middle";
+    let v="";
+    if(S.train){const vv=S.V[id]-S.V.BODY;v=`<text class="volt" x="${tx}" y="${ty+(side==="b"?13:side==="t"?-12:14)}" text-anchor="${an}">${vv.toFixed(2)} В</text>`}
+    h+=`<g class="tp" data-tp="${id}" tabindex="0" role="button" aria-label="${full}"><title>${full}</title><circle cx="${x}" cy="${y}" r="13" fill="transparent"/><circle class="d" cx="${x}" cy="${y}" r="6"/><text class="tl" x="${tx}" y="${ty}" text-anchor="${an}">${sh}</text>${v}</g>`;
+  });
+  // щупы
+  [["red","var(--red)","+"],["blk","var(--black)","−"]].forEach(([k,c,s],i)=>{
+    if(!S[k])return;const p=P(S[k]);const dx=i?-9:9;
+    h+=`<g pointer-events="none"><circle cx="${p.x}" cy="${p.y}" r="9" fill="none" stroke="${c}" stroke-width="3"/><line x1="${p.x+dx}" y1="${p.y-8}" x2="${p.x+dx*2.6}" y2="${p.y-34}" stroke="${c}" stroke-width="4" stroke-linecap="round"/></g>`;
+  });
+  $("svg").innerHTML=h;
+}
+
+function render(){
+  const C=S.C;
+  $("jobno").textContent=`Заказ-наряд № ${S.no}`;
+  $("car").textContent=`${S.car} · пробег ${S.km.toLocaleString("ru-RU")} км`;
+  $("complaint").textContent=`«${S.fault.complaint}»`;
+  $("sys").textContent=C.sys;$("norm").textContent=C.norm+" мин";$("price").textContent=C.price+" ₽";
+  $("parts").textContent=S.parts+" ₽";
+  const ck=$("clock");ck.textContent=fmtT(S.t);ck.classList.toggle("over",S.t>C.norm);
+  // панель управления
+  let cb=`<button class="tog batt" id="tBatt" aria-pressed="${S.batt}"><span class="led"></span>${S.batt?"АКБ подключена":"Клемма «−» снята"}</button>`;
+  C.controls.forEach(c=>cb+=`<button class="tog" data-ctrl="${c.id}" aria-pressed="${S.ctrl[c.id]}"><span class="led"></span>${c.label}</button>`);
+  const relays=C.els.filter(e=>e.t==="contact");
+  cb+=`<span class="relay">${relays.map(r=>`Реле ${r.group}: ${S.closed[r.id]?"щёлкнуло, включено":"тихо"}`).join(" · ")||"&nbsp;"}</span>`;
+  $("ctrlbar").innerHTML=cb;
+  $("tBatt").onclick=toggleBatt;
+  $("ctrlbar").querySelectorAll("[data-ctrl]").forEach(b=>b.onclick=()=>toggleCtrl(b.dataset.ctrl));
+  drawScheme();
+  // мультиметр
+  const m=readMeter();$("num").textContent=m.num;$("unit").textContent=m.unit;$("flag").textContent=m.flag;
+  $("mV").setAttribute("aria-pressed",S.mode==="V");$("mR").setAttribute("aria-pressed",S.mode==="R");
+  $("pRed").setAttribute("aria-pressed",S.active==="red");$("pBlk").setAttribute("aria-pressed",S.active==="blk");
+  $("pRedAt").textContent=S.red?nodeFull(S.red):"не стоит";$("pBlkAt").textContent=S.blk?nodeFull(S.blk):"не стоит";
+  // деталь
+  const d=$("detail");
+  if(S.sel==="__batt"){
+    d.innerHTML=`<h3>Аккумулятор 12 В, 60 А·ч</h3><p class="note">Для замеров сопротивления и ремонта проводки снимай клемму «−».</p><div class="acts"><button class="act" id="bt">${S.batt?"Снять клемму «−»":"Подключить клемму «−»"}<em>2 мин</em></button></div>`;
+    $("bt").onclick=toggleBatt;
+  }else if(S.sel){
+    const el=C.els.find(e=>e.id===S.sel);
+    const rs=repairsFor(el);
+    d.innerHTML=`<h3>${el.name}</h3>
+      <div class="acts"><button class="act" id="insp">Осмотреть<em>${INSPECT_MIN[el.t]||3} мин</em></button>
+      ${rs.map((r,i)=>`<button class="act" data-rep="${i}">${r.label}<em>${r.cost} ₽ · ${r.min} мин</em></button>`).join("")}</div>
+      ${S.seen[el.id]?`<div class="seen">${S.seen[el.id]}</div>`:""}
+      ${S.batt&&!["fuse","contact","coil"].includes(el.t)?`<p class="note">Ремонт проводки только со снятой клеммой «−».</p>`:""}`;
+    $("insp").onclick=()=>inspect(el.id);
+    d.querySelectorAll("[data-rep]").forEach(b=>b.onclick=()=>repair(el.id,+b.dataset.rep));
+  }else{
+    d.innerHTML=`<h3>Деталь не выбрана</h3><p class="note">Нажми на деталь или провод на схеме, чтобы осмотреть или отремонтировать.</p>`;
+  }
+  // журнал
+  $("log").innerHTML=S.log.slice(0,60).map(l=>`<div><time>${fmtT(l.t).replace(" мин","м").replace(" ч ","ч")}</time><span class="${l.cls||""}">${l.msg}</span></div>`).join("");
+  // статистика
+  const avg=STATS.jobs?Math.round(STATS.money/(Math.max(STATS.minutes,1)/60)):0;
+  $("stats").innerHTML=`<span class="chip">Заказов <b>${STATS.jobs}</b></span><span class="chip">Починено <b>${STATS.fixed}</b></span><span class="chip">Возвратов <b>${STATS.back}</b></span><span class="chip">Лишних запчастей <b>${STATS.wasted} ₽</b></span><span class="chip">Выработка <b>${avg} ₽/ч</b></span>`;
+  $("deliver").disabled=S.done;
+}
+
+/* ---------- События ---------- */
+$("svg").addEventListener("click",e=>{
+  const tp=e.target.closest("[data-tp]");if(tp){placeProbe(tp.dataset.tp);return}
+  const g=e.target.closest("[data-el]");if(g&&e.target.classList.contains("hit")){S.sel=g.dataset.el;render()}
+});
+$("svg").addEventListener("keydown",e=>{const tp=e.target.closest("[data-tp]");if(tp&&(e.key==="Enter"||e.key===" ")){e.preventDefault();placeProbe(tp.dataset.tp)}});
+$("mV").onclick=()=>{S.mode="V";render()};
+$("mR").onclick=()=>{S.mode="R";if(S.batt)toast("Сопротивление меряют на обесточенной цепи. Сними клемму «−».");render()};
+$("pRed").onclick=()=>{S.active="red";render()};
+$("pBlk").onclick=()=>{S.active="blk";render()};
+$("blkBody").onclick=()=>{S.active="blk";placeProbe("BODY")};
+$("deliver").onclick=deliver;
+$("newjob").onclick=()=>{if(!S.done&&S.t>0&&!S.trainUsed){STATS.jobs++;STATS.back++;STATS.minutes+=Math.round(S.t);store("autoel_stats",STATS)}newJob()};
+$("train").onchange=e=>{S.train=e.target.checked;if(S.train)S.trainUsed=true;render()};
+newJob();
+})();
+</script>
+
+</html>
