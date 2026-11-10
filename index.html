@@ -1678,7 +1678,7 @@ $("lR").onclick=()=>{probes.active="red";updMeter()};
 $("bCrank").onclick=()=>{ac();if(car.eng)stopEngine();else crankNow("helper")};
 $("mCr").onclick=$("bCrank").onclick;
 // компактный прибор на телефоне: экран + одна строка кнопок, чтобы не закрывал детали
-let meterCompact=store("garazh_meter");if(meterCompact===null)meterCompact=!matchMedia("(min-width:960px)").matches;
+let meterCompact=store("garazh_meter");if(meterCompact===null)meterCompact=coarse||!matchMedia("(min-width:700px)").matches;   // телефон — свёрнутый, компьютер — с ручкой
 function applyCompact(){$("meter").classList.toggle("compact",!!meterCompact)}applyCompact();
 const lcdTap=()=>{meterCompact=!meterCompact;store("garazh_meter",meterCompact);applyCompact();say(meterCompact?"Прибор свёрнут. Режим — кнопка слева, щуп — посередине. Нажми на экран прибора, чтобы открыть ручку.":"Ручка прибора открыта. Нажми на экран прибора, чтобы свернуть.")};
 $("lcd").onclick=lcdTap;$("lcd").onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();lcdTap()}};
