@@ -76,6 +76,7 @@ button{font-family:var(--f-ui);touch-action:manipulation}
 .leads button{font-family:var(--f-mono);font-size:10px;font-weight:700;border:2px solid #211a00;background:transparent;color:#211a00;border-radius:7px;padding:5px 2px;cursor:pointer;min-height:30px}
 .leads button[aria-pressed="true"]{background:#211a00;color:var(--hi)}
 #mAt{font-size:9.5px;margin-top:5px;line-height:1.3}
+.crankb{display:block;width:100%;margin-top:6px;font-family:var(--f-mono);font-size:10px;font-weight:800;border:2px solid #211a00;background:#211a00;color:var(--hi);border-radius:7px;min-height:32px;cursor:pointer;letter-spacing:.02em}
 #meter.lampmode .dialwrap{display:none}
 /* шторки и панели */
 .sheet{position:fixed;z-index:25;left:0;right:0;bottom:0;max-height:62vh;overflow-y:auto;background:var(--panel);border-top:1px solid var(--line);border-radius:18px 18px 0 0;
@@ -193,6 +194,7 @@ body.rotting #toast{bottom:calc(290px + var(--sb))}
     <div class="dlab" id="dlab"></div>
   </div>
   <div class="leads"><button id="lR" aria-pressed="true">КРАСНЫЙ</button><button id="lB" aria-pressed="false">ЧЁРНЫЙ</button></div>
+  <button id="bCrank" class="crankb">ПОМОЩНИК: КРУТИ</button>
   <div id="mAt"></div>
 </section>
 <div id="bottom">
@@ -284,6 +286,14 @@ function noise(dur,freq,gain,q=1.2){const a=ac();if(!a)return;const n=a.createBu
 const SND={click:()=>noise(.04,2600,.7),relay:()=>{noise(.035,1700,1.1);setTimeout(()=>noise(.03,3400,.5),22)},ratchet:()=>noise(.018,5200,.45,3),
   pop:()=>{noise(.3,500,1.6,.7);noise(.12,3000,.6)},hiss:()=>noise(.7,7000,.35,.6),sizzle:()=>noise(.6,3600,.25,.8),plug:()=>noise(.05,1200,.9,2),thud:()=>noise(.08,300,1,1),
   coin:()=>{const a=ac();if(!a)return;[880,1320].forEach((f,i)=>{const o=a.createOscillator(),g=a.createGain();o.frequency.value=f;g.gain.setValueAtTime(.06,a.currentTime+i*.09);g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+i*.09+.25);o.connect(g).connect(a.destination);o.start(a.currentTime+i*.09);o.stop(a.currentTime+i*.09+.3)})}};
+SND.thunk=()=>{noise(.09,700,1.6,1);noise(.04,2400,.7)};
+SND.chatter=()=>{for(let i=0;i<14;i++)setTimeout(()=>noise(.03,1500+Math.random()*500,.9,1.5),i*95)};
+SND.crank=(sp)=>{const n=Math.round(10*sp)+4,dt=sp>.8?110:230;for(let i=0;i<n;i++)setTimeout(()=>{noise(.09,220,1.3,.8);noise(.05,900,.25)},i*dt)};
+let engO=null;
+function engineSound(on){if(on&&!engO){const a=ac();if(!a)return;const o=a.createOscillator(),o2=a.createOscillator(),f=a.createBiquadFilter(),g=a.createGain();
+    o.type="sawtooth";o.frequency.value=26;o2.type="square";o2.frequency.value=52.5;f.type="lowpass";f.frequency.value=180;g.gain.value=0;g.gain.setTargetAtTime(.05,a.currentTime,.3);
+    o.connect(f);o2.connect(f);f.connect(g).connect(a.destination);o.start();o2.start();engO={o,o2,g,a}}
+  else if(!on&&engO){const e=engO;engO=null;try{e.g.gain.setTargetAtTime(0,e.a.currentTime,.15);setTimeout(()=>{try{e.o.stop();e.o2.stop()}catch(_){}},600)}catch(_){}}}
 let beepO=null;
 function beep(on){const a=on?ac():AC;if(!a)return;if(on&&!beepO){const o=a.createOscillator(),g=a.createGain();o.frequency.value=2650;g.gain.value=.05;o.connect(g).connect(a.destination);o.start();beepO=o}else if(!on&&beepO){try{beepO.stop()}catch(e){}beepO=null}}
 function buzz(ms){try{if(navigator.vibrate&&(!navigator.userActivation||navigator.userActivation.hasBeenActive))navigator.vibrate(ms)}catch(e){}}
@@ -295,27 +305,39 @@ function freshCar(){return{
   relays:{K4:{type:"relay",coil:"ok",ct:"ok"},K2:{type:"relay",coil:"ok",ct:"ok"}},
   x3:{plugged:true,corr:0},
   lamps:{E5:{conn:true,bulb:{type:"bulb",ok:true}},E6:{conn:true,bulb:{type:"bulb",ok:true}}},
-  grounds:{G101:{on:true,turns:3,dirty:0},G102:{on:true,turns:3,dirty:0},G103:{on:true,turns:3,dirty:0}},
+  grounds:{G101:{on:true,turns:3,dirty:0},G102:{on:true,turns:3,dirty:0},G103:{on:true,turns:3,dirty:0},GE:{on:true,turns:3,dirty:0}},
   btn:{out:false,item:{type:"button",ok:true}},
   glove:{open:false,sw:{type:"gswitch",ok:true}},radio:{out:false,fault:false},
   wires:{W2:{broken:false},W5:{broken:false},W8:{broken:false,short:false}},
-  spots:{},jumper:null
+  spots:{},jumper:null,
+  eng:false,crank:false,
+  starter:{present:true,sol:"ok",bolts:3},stlug:{on:true,turns:3},st50:{plugged:true,corr:0},
+  altlug:{on:true,turns:3},altc:{plugged:true},belt:{turns:3},reg:{present:true,fault:"ok",screws:3}
 }}
 let car=freshCar();
 // старые сохранения: дополнить недостающие поля значениями по умолчанию
 function migrateCar(c){const d=freshCar();(function fill(t,s){Object.keys(s).forEach(k=>{if(t[k]===undefined)t[k]=clone(s[k]);else if(s[k]&&typeof s[k]==="object"&&!Array.isArray(s[k])&&t[k]&&typeof t[k]==="object")fill(t[k],s[k])})})(c,d);
-  if(c.batt.emf!==undefined){c.batt.soc=Math.max(0,Math.min(100,Math.round((c.batt.emf-11.89)/.0076)));delete c.batt.emf}return c}
+  if(c.batt.emf!==undefined){c.batt.soc=Math.max(0,Math.min(100,Math.round((c.batt.emf-11.89)/.0076)));delete c.batt.emf}c.crank=false;c.eng=false;return c}
 // Аккумулятор: 6 банок по ~2,1 В. Напряжение без нагрузки показывает заряд: 12,65 В — 100%, 11,89 В — 0%. Замкнутая банка — минус ~2,1 В.
 const battEmf=b=>b.dead?10.55:11.89+.0076*b.soc;
-function loadTest(b){const e=battEmf(b),I=e/(b.ri+.06);return {ocv:e,v:e-I*b.ri,I}}   // вилка ~0,06 Ом ≈ 180 А
+// Разряженный АКБ хуже отдаёт ток: внутреннее сопротивление растёт до ×3 у пустого.
+const battRi=b=>b.ri*(1+2*(100-Math.max(0,Math.min(100,b.soc)))/100);
+// Заряд: полный АКБ берёт всего пару ампер, пустой — десятки.
+const battRc=b=>.03+.004*Math.max(0,Math.min(100,b.soc));
+function loadTest(b){const e=battEmf(b),ri=battRi(b),I=e/(ri+.06);return {ocv:e,v:e-I*ri,I}}   // вилка ~0,06 Ом ≈ 180 А
+const lugR=l=>!l.on?OPEN:l.turns>=3?.0005:l.turns>0?.35:OPEN;
+// Генератор выдаёт ток, только если мотор работает, ремень натянут, есть возбуждение (провод L) и стоит регулятор со щётками.
+const altProd=c=>!!(c.eng&&!c.crank&&c.ign&&c.belt.turns>=3&&c.altc.plugged&&c.reg.present&&c.reg.screws>0);
+const altSet=c=>c.reg.fault==="high"?15.6:14.4;
 
 /* ---------- Электрика: узловой анализ ---------- */
 // Каждый элемент — сопротивление между двумя узлами. АКБ — источник 12,6 В с внутренним сопротивлением 0,02 Ом.
 function gR(g){if(!g.on)return OPEN;return g.turns>=3?.005+g.dirty:g.turns>0?.9+g.dirty:OPEN}
-function elements(c,en){
+function elements(c,o){
+  const en=o.en;
   const E=[],add=(id,a,b,R)=>E.push({id,a,b,R});
-  add("CLAMP","Bm","GND",!c.clamp.on?OPEN:(c.clamp.turns>=3?.002:c.clamp.turns>0?.4:OPEN)+c.clamp.dirty);
-  add("PCL","Bpost","Bp",!c.pclamp.on?OPEN:c.pclamp.turns>=3?.002:c.pclamp.turns>0?.4:OPEN);
+  add("CLAMP","Bm","GND",!c.clamp.on?OPEN:(c.clamp.turns>=3?.001:c.clamp.turns>0?.4:OPEN)+c.clamp.dirty);
+  add("PCL","Bpost","Bp",!c.pclamp.on?OPEN:c.pclamp.turns>=3?.001:c.pclamp.turns>0?.4:OPEN);
   add("LINK","Bp","r30",.003);
   add("ECU","r30","GND",630);                       // память блоков: ~0,02 А всегда
   add("IGN","r30","r15",c.ign?.01:OPEN);
@@ -348,16 +370,30 @@ function elements(c,en){
   add("W9","E6m","G103",.02);add("G103","G103","GND",gR(c.grounds.G103));
   if(c.jumper)add("JMP",c.jumper[0],c.jumper[1],.01);
   if(c.amm)add("AMM",c.amm[0],c.amm[1],.01);       // амперметр в разрыв: почти провод
+  // ---- пуск: толстый плюс → втягивающее → мотор стартера → корпус двигателя → масса двигателя GE → кузов
+  add("STC","Bp","STl",.0008);add("STLUG","STl","ST30",lugR(c.stlug));
+  const S=c.starter;
+  if(S.present){add("SOLC","ST30","STM",o.sol?(S.sol==="burnt"?.35:.001):OPEN);add("MOT","STM","STg",.052);add("SOLW","ST50","STg",1.2);
+    add("STB","STg","ENG",S.bolts>=3?.0005:S.bolts>0?.3:OPEN)}
+  add("K50","r30","S50",c.crank?.01:OPEN);add("W50","S50","X50",.03);add("X50","X50","ST50",c.st50.plugged?.003+c.st50.corr:OPEN);
+  add("STRAP","ENG","GE",.0003);const ge=c.grounds.GE;add("GE","GE","GND",!ge.on?OPEN:ge.turns>=3?.0004+ge.dirty:ge.turns>0?.9+ge.dirty:OPEN);
+  // ---- зарядка: B+ генератора → толстый провод → «+» АКБ; лампа заряда от замка (15) на вывод L
+  add("ALTC","Bp","ALl",.004);add("ALUG","ALl","ALTB",lugR(c.altlug));
+  add("CHL","r15","D",72);add("LPLUG","D","DL",c.altc.plugged?.003:OPEN);
+  if(c.reg.present&&c.reg.screws>0)add("ROT","DL",o.prod?"ALTB":"ENG",o.prod?.1:40);
   return E;
 }
-function nodal(c,en,inj){
-  const E=elements(c,en),S=new Set(["Bpost","Bm"]);E.forEach(e=>{S.add(e.a);S.add(e.b)});S.delete("GND");
+function nodal(c,o,inj){
+  o=o||{};const E=elements(c,o),S=new Set(["Bpost","Bm"]);E.forEach(e=>{S.add(e.a);S.add(e.b)});S.delete("GND");
   const names=[...S],ix={};names.forEach((n,i)=>ix[n]=i);const n=names.length,B=c.batt,emf=battEmf(B);
   const A=Array.from({length:n},()=>new Float64Array(n+1));
   const g=(a,b,G)=>{const ia=a==="GND"?-1:ix[a],ib=b==="GND"?-1:ix[b];if(ia>=0)A[ia][ia]+=G;if(ib>=0)A[ib][ib]+=G;if(ia>=0&&ib>=0){A[ia][ib]-=G;A[ib][ia]-=G}};
   for(let i=0;i<n;i++)A[i][i]+=1e-9;
-  if(B.present)g("Bpost","Bm",1/B.ri);
-  if(!inj){if(B.present){A[ix.Bpost][n]+=emf/B.ri;A[ix.Bm][n]-=emf/B.ri}}
+  const Rb=o.bc?battRc(B):battRi(B);
+  if(B.present)g("Bpost","Bm",1/Rb);
+  if(o.prod&&ix.ALTB!==undefined)g("ALTB","ENG",100);
+  if(!inj){if(B.present){A[ix.Bpost][n]+=emf/Rb;A[ix.Bm][n]-=emf/Rb}
+    if(o.prod&&ix.ALTB!==undefined){const J=altSet(c)*100;A[ix.ALTB][n]+=J;if(ix.ENG!==undefined)A[ix.ENG][n]-=J}}
   else{if(inj[0]!=="GND"&&ix[inj[0]]!==undefined)A[ix[inj[0]]][n]+=1e-3;if(inj[1]!=="GND"&&ix[inj[1]]!==undefined)A[ix[inj[1]]][n]-=1e-3}
   E.forEach(e=>{if(e.R<OPEN)g(e.a,e.b,1/e.R)});
   for(let col=0;col<n;col++){
@@ -366,25 +402,35 @@ function nodal(c,en,inj){
     const d=A[col][col];
     for(let r=0;r<n;r++){if(r===col)continue;const f=A[r][col]/d;if(f)for(let k=col;k<=n;k++)A[r][k]-=f*A[col][k]}
   }
-  const V={GND:0};names.forEach((s,i)=>V[s]=A[i][n]/A[i][i]);return {V,E};
+  const V={GND:0};names.forEach((s,i)=>V[s]=A[i][n]/A[i][i]);return {V,E,Rb};
 }
 let lastBlow=null;
+// Один расчёт с учётом втягивающего стартера и заряда АКБ
+function pass(c,en){
+  const o={en,sol:false,prod:altProd(c),bc:false},cr={on:!!c.crank,pull:false,chatter:false,vm:0,im:0,vs:0,start:false};
+  let r=nodal(c,o);
+  if(c.crank&&c.starter.present){cr.vs=r.V.ST50-r.V.STg;cr.pull=cr.vs>=7;   // втягивающее срабатывает от ~7 В
+    if(cr.pull){o.sol=true;r=nodal(c,o);const v2=r.V.ST50-r.V.STg;cr.vs2=v2;cr.chatter=v2<5;   // при пуске напряжение просело — втягивающее отпускает: «щёлк-щёлк»
+      cr.vm=r.V.STM-r.V.STg;cr.im=cr.vm/.052;cr.start=!cr.chatter&&cr.vm>=8.5}}
+  if(o.prod&&c.batt.present){const ib=(battEmf(c.batt)-(r.V.Bpost-r.V.Bm))/r.Rb;if(ib<0){o.bc=true;r=nodal(c,o)}}
+  r.cr=cr;r.prod=o.prod;return r;
+}
 function solve(c){
   let out;
   for(let k=0;k<5;k++){
-    let r=nodal(c,false),en=false;const rel=c.relays.K4;
+    let r=pass(c,false),en=false;const rel=c.relays.K4;
     if(rel&&rel.coil==="ok")en=(r.V.K86-r.V.K85)/80>.085;
-    if(en)r=nodal(c,true);
+    if(en)r=pass(c,true);
     const I={};r.E.forEach(e=>I[e.id]=e.R<OPEN?(r.V[e.a]-r.V[e.b])/e.R:0);
-    out={V:r.V,I,en};
+    out={V:r.V,I,en,cr:r.cr,prod:r.prod};
     let blew=null;Object.keys(c.fuses).forEach(f=>{const fu=c.fuses[f];if(!blew&&fu&&!fu.blown&&Math.abs(I[f]||0)>fu.r*2.5){fu.blown=true;blew=f}});
     if(!blew)break;lastBlow=blew;
   }
   return out;
 }
-function ohm(c,a,b){const r=nodal(c,false,[a,b]);const va=r.V[a],vb=r.V[b];if(va===undefined||vb===undefined)return Infinity;return (va-vb)/1e-3}
+function ohm(c,a,b){const t=Object.assign({},c,{eng:false,crank:false});const r=nodal(t,{},[a,b]);const va=r.V[a],vb=r.V[b];if(va===undefined||vb===undefined)return Infinity;return (va-vb)/1e-3}
 const lampP=(V,p,m)=>Math.pow((V[p]||0)-(V[m]||0),2)/2.6;
-function drainOf(c){const t=clone(c);t.ign=false;t.sw=false;t.glove.open=false;t.amm=null;t.jumper=null;t.batt.present=true;t.clamp={on:true,turns:3,dirty:0};t.pclamp={on:true,turns:3};const r=solve(t);return Math.abs(r.I.LINK||0)}
+function drainOf(c){const t=clone(c);t.ign=false;t.sw=false;t.eng=false;t.crank=false;t.glove.open=false;t.amm=null;t.jumper=null;t.batt.present=true;t.clamp={on:true,turns:3,dirty:0};t.pclamp={on:true,turns:3};const r=solve(t);return Math.abs(r.I.LINK||0)}
 
 /* ---------- Каталоги ---------- */
 const FUSE_COL={5:"#d8c39a",7.5:"#8b5a2b",10:"#d0342c",15:"#2f6fd6",20:"#e8c62a",30:"#3aa655"};
@@ -400,6 +446,8 @@ const PARTS=[
   {id:"button",name:"Кнопка ПТФ в сборе",price:1200,item:{type:"button",ok:true}},
   {id:"gsw",name:"Концевик подсветки бардачка",price:250,item:{type:"gswitch",ok:true}},
   {id:"akb",name:"Аккумулятор 60 А·ч",price:6500,item:{type:"battery",soc:100,ri:.008,dead:false}},
+  {id:"starter",name:"Стартер в сборе (с втягивающим)",price:9500,item:{type:"starter",sol:"ok"}},
+  {id:"reg",name:"Регулятор напряжения со щётками",price:2200,item:{type:"regulator",fault:"ok"}},
   {id:"mfuse",name:"Предохранитель мультиметра 10 А",price:80,meter:true}
 ];
 const TOOLS=[
@@ -509,7 +557,44 @@ const JOBS=[
     setup:c=>{c.clamp.dirty=.3},
     hints:["Белый налёт — окисел. Он работает как засор в трубе: без нагрузки не видно, а при большом токе на нём теряются вольты.",
       "Включи ПТФ (большой ток) и измерь падение между выводом «−» АКБ и клеммой «−». На чистой клемме почти 0 В, тут — около 3 В.",
-      "Ослабь гайку «−», сними клемму, зачисти её наждачкой, надень и затяни."]}
+      "Ослабь гайку «−», сними клемму, зачисти её наждачкой, надень и затяни."]},
+  /* ---- пуск ---- */
+  {id:20,tier:2,les:15,c:"Поменяли масло, сняли защиту — теперь поворачиваю ключ, а стартер молчит. Даже не щёлкает.",pay:2000,norm:35,partCost:0,
+    setup:c=>{c.st50.corr=3},
+    hints:["Тишина при пуске — втягивающее не сработало. Значит, на тонкий провод 50 не пришло достаточно напряжения. Стартер стоит снизу, рядом с защитой, — там и копали.",
+      "Открой «Стартер». Чёрный щуп оставь на кузове, красный — на вывод 50. Нажми в приборе «Помощник: крути» — он повернёт ключ на «Старт». Исправно: больше 10 В. Здесь около 3 В.",
+      "Разъём 50 окислился: на нём теряются вольты. Сними разъём рукой, пшикни очистителем, надень обратно и попроси крутануть."]},
+  {id:19,tier:2,les:16,c:"Поворачиваю ключ — щёлк-щёлк-щёлк, а мотор не крутит. АКБ новый.",pay:2600,norm:45,partCost:0,
+    setup:c=>{c.grounds.GE.dirty=.15},
+    hints:["«Щёлк-щёлк» — втягивающее срабатывает и тут же отпускает: стоит пойти большому току, напряжение проваливается. Ищи, где теряются вольты на толстой цепи стартера.",
+      "Проверь массу двигателя падением напряжения при пуске. В «АКБ и масса» нажми «ЧЁРНЫЙ» и коснись вывода «−» АКБ, красный — на кронштейн массы на двигателе. Нажми «Помощник: крути». Норма — до 0,5 В.",
+      "Косичка массы двигателя идёт с блока на крыло — болт GE рядом с G101. Там теряется почти всё напряжение. Открути болт GE ключом, сними наконечник, зачисти площадку наждачкой, верни и затяни."]},
+  {id:21,tier:3,les:16,c:"Щёлкает один раз — и всё. Аккумулятор проверили в другом сервисе, исправен.",pay:4500,norm:90,partCost:9500,
+    setup:c=>{c.starter.sol="burnt"},
+    hints:["Один щелчок — втягивающее сработало, а мотор стартера не получил ток. Ток идёт через главный контакт внутри втягивающего: толстый плюс 30 → контакт → вывод на мотор.",
+      "Открой «Стартер». Чёрный щуп оставь на кузове, красный — на вывод 30, «Помощник: крути»: около 12 В. Теперь красный на вывод M: почти 0. Плюс подошёл к стартеру, но дальше контакта не прошёл — контакты втягивающего подгорели.",
+      "Стартер под замену. Сними «−» АКБ первым. Сними разъём 50, открути гайку на выводе 30 и сними наконечник, открути болты стартера ключом и вынь его. Поставь новый в обратном порядке, верни «−» и проверь пуск."]},
+  /* ---- зарядка ---- */
+  {id:22,tier:2,les:17,c:"На панели горит красная лампа аккумулятора. Утром свистело под капотом.",pay:1800,norm:30,partCost:0,
+    setup:c=>{c.belt.turns=1},
+    hints:["Лампа АКБ на заведённом — генератор не заряжает. Сначала проверь цифрой: заведи мотор и измерь на выводах АКБ. Норма 13,8–14,7 В.",
+      "На АКБ около 12,5 В — генератор не даёт ток. Свист по утрам — признак ремня. Открой «Ремень», посвети фонарём и нажми на ремень рукой: прогиб больше 15 мм — слабо.",
+      "Ремень ослаб и проскальзывает. Ключом затяни болт натяжителя (он сверху на планке генератора) по часовой, проверь прогиб, заведи и измерь зарядку ещё раз."]},
+  {id:24,tier:3,les:17,c:"Вечером фары то ярче, то тусклее. Генератор недавно снимали.",pay:2800,norm:40,partCost:0,
+    setup:c=>{c.altlug.turns=1},
+    hints:["Свет «гуляет» — напряжение скачет. Заведи мотор, включи ПТФ и измерь на АКБ. Потом сравни с выводом B+ генератора.",
+      "Падение напряжения на силовом проводе: чёрный щуп — на «+» АКБ, красный — на B+ генератора, мотор работает, ПТФ включены. Норма — до 0,5 В. Тут больше.",
+      "Генератор снимали и не дотянули гайку на B+. Сначала заглуши мотор и сними «−» АКБ: B+ — это прямой плюс без предохранителя. Затяни гайку ключом, верни «−»."]},
+  {id:25,tier:3,les:17,c:"Аккумулятор пахнет и кипит, лампы перегорают одна за другой.",pay:3800,norm:70,partCost:2200,
+    setup:c=>{c.reg.fault="high"},
+    hints:["Кипит АКБ и горят лампы — это перезаряд: генератор даёт слишком много. Заведи и измерь на выводах АКБ.",
+      "Больше 15 В — выше нормы 14,7. Ремень и провода тут ни при чём: напряжение держит регулятор на задней крышке генератора. Он «сошёл с ума».",
+      "Заглуши мотор, сними «−» АКБ. На генераторе открути винты регулятора ключом, вынь его, поставь новый со склада, затяни, верни «−» и проверь зарядку на заведённом."]},
+  {id:23,tier:3,les:18,c:"После мойки мотора АКБ садится на ходу. Красная лампа на панели не горит вообще.",pay:3200,norm:45,partCost:0,
+    setup:c=>{c.altc.plugged=false;c.batt.soc=55},
+    hints:["Лампа заряда должна загораться при включении зажигания — это проверка цепи. Не горит совсем — значит, на генератор не идёт провод возбуждения L, и он даже не пытается заряжать.",
+      "Включи зажигание и посмотри на лампу на панели — не горит. Открой «Генератор» и посвети на разъём L.",
+      "Разъём L соскочил после мойки. Надень его, заведи мотор и проверь: лампа гаснет, на АКБ 14 В. АКБ сильно разряжен — поставь его на зарядку."]}
 ];
 const SPOTS={
   W2:{seg:"hs_dash",found:"Под торпедо чужая скрутка от сигнализации: жёлто-зелёный провод перерезан, концы просто замотаны изолентой.",kind:"broken",pos:[.12,.69,-.975]},
@@ -608,7 +693,34 @@ const LESSONS=[
     b:`<p>Белый или зелёный налёт на клеммах — окисел. Он как песок в трубе: пока ток маленький, его не заметно, а при большом токе (стартер, фары) на нём теряются вольты.</p>
       <p>Проверка: включи потребитель и поставь щупы на вывод АКБ и на клемму. Должно быть почти 0 В. Если больше 0,3 В — клемма плохая.</p>
       <div class="ex">Лечится просто: сними клемму, зачисти её и вывод до блеска, надень и затяни. Менять аккумулятор не нужно.</div>`,
-    q:"Фары включены. Между выводом «−» и клеммой «−» 2,8 В. Что делать?",o:["Менять АКБ","Зачистить клемму","Зарядить АКБ"],a:1,why:"2,8 В на соединении — это окисел. Сам аккумулятор тут ни при чём."}
+    q:"Фары включены. Между выводом «−» и клеммой «−» 2,8 В. Что делать?",o:["Менять АКБ","Зачистить клемму","Зарядить АКБ"],a:1,why:"2,8 В на соединении — это окисел. Сам аккумулятор тут ни при чём."},
+  {t:"Стартер: мотор на 200 ампер",s:"втягивающее, вывод 30 и 50",
+    b:`<p>Стартер — сильный электромотор. При пуске он берёт <b>150–200 А</b> — в двадцать раз больше, чем обе ПТФ. Поэтому к нему идёт самый толстый провод прямо с «+» АКБ, без предохранителя — это <b>вывод 30</b>.</p>
+      <p>Сверху на стартере сидит <b>втягивающее реле</b>. Это как реле ПТФ, только огромное. Ключ в положении «Старт» подаёт плюс на тонкий <b>вывод 50</b> — втягивающее щёлкает и замыкает толстый контакт на мотор.</p>
+      <p>А обратно ток идёт через корпус двигателя и <b>массу двигателя</b> — толстую косичку на кузов.</p>
+      <div class="ex">По звуку: <b>тишина</b> — не дошло управление на 50. <b>Один щелчок</b> — втягивающее сработало, а ток на мотор не прошёл. <b>Щёлк-щёлк-щёлк</b> — напряжение проваливается: слабый АКБ, окисел или плохая масса.</div>
+      <div class="ex">Вывод 30 под напряжением всегда, даже без ключа. Прежде чем крутить там гайки, сними «−» АКБ.</div>`,
+    q:"Ключ на «Старт», а стартер молчит, ни звука. Куда смотреть первым?",o:["На вывод 50: дошло ли управление","Сразу менять стартер","На предохранитель ПТФ"],a:0,why:"Тишина — втягивающее даже не сработало. Значит, на тонкий провод 50 не пришёл плюс."},
+  {t:"Пуск с помощником: падение напряжения",s:"где теряются вольты при 200 А",
+    b:`<p>Плохой контакт на 200 амперах — как сузившийся шланг на пожарной машине: без нагрузки всё нормально, а под нагрузкой вода не идёт.</p>
+      <p>Поэтому цепь стартера проверяют <b>при пуске</b>: помощник крутит ключ, а ты держишь щупы по обе стороны подозрительного места.</p>
+      <p class="mono" style="color:var(--ink)">«+» АКБ → вывод 30 стартера: до 0,5 В<br>корпус двигателя → «−» АКБ: до 0,5 В<br>на самом АКБ при пуске: не ниже 9,6 В</p>
+      <div class="ex">В игре помощник — кнопка «Помощник: крути» на мультиметре. Щупы ставь заранее: красный на одну точку, чёрный на другую.</div>
+      <div class="ex">Амперметр мультиметра (10 А) в цепь стартера не включают — 200 А сожгут его предохранитель мгновенно.</div>`,
+    q:"При пуске между корпусом двигателя и «−» АКБ 4 В. Что это?",o:["Норма","Плохая масса двигателя","Разряжен АКБ"],a:1,why:"Здесь должен быть почти ноль. 4 В — вольты теряются на массе двигателя, стартеру их не хватает."},
+  {t:"Генератор: кормит машину на ходу",s:"13,8–14,7 вольт",
+    b:`<p>Пока мотор работает, электричество даёт <b>генератор</b>, а АКБ только подзаряжается. Генератор крутит ремень от мотора.</p>
+      <p>Чтобы ток шёл в АКБ, генератор держит давление выше, чем у АКБ: <b>13,8–14,7 В</b>. Это держит <b>регулятор напряжения</b> на задней крышке.</p>
+      <p class="mono" style="color:var(--ink)">заведи → измерь на выводах АКБ:<br>12,6 и ниже — не заряжает · 13,8–14,7 — норма · выше 14,8 — перезаряд</p>
+      <div class="ex">Не заряжает: проверь ремень (прогиб ~10 мм, не свистит), провод B+ и разъём генератора. Перезаряд (кипит АКБ, горят лампы): виноват регулятор.</div>
+      <div class="ex">Силовой провод B+ генератора, как и вывод 30 стартера, — без предохранителя. Работаешь с ним — заглуши мотор и сними «−».</div>`,
+    q:"На заведённом моторе на АКБ 15,6 В. Что неисправно?",o:["Ремень","Регулятор напряжения","Аккумулятор"],a:1,why:"Выше 14,7 В — генератор отдаёт слишком много. Напряжение держит регулятор, значит он."},
+  {t:"Лампа заряда — подсказка с панели",s:"горит при зажигании, гаснет на ходу",
+    b:`<p>Красная лампа с аккумулятором на панели работает так: ключ на зажигание — лампа <b>горит</b>. Через неё на генератор идёт маленький ток <b>возбуждения</b> по проводу L — он «будит» генератор.</p>
+      <p>Мотор завёлся, генератор зарядил — лампа <b>гаснет</b>.</p>
+      <p class="mono" style="color:var(--ink)">горит на заведённом — не заряжает (ремень, щётки, регулятор)<br>не горит даже при зажигании — нет провода L / лампы: генератор не проснётся</p>
+      <div class="ex">Первым делом всегда смотри на лампу при включении зажигания. Это бесплатная проверка цепи за секунду.</div>`,
+    q:"Включили зажигание — лампа заряда не горит. Мотор завели — АКБ не заряжается. Где искать?",o:["Провод L и разъём генератора","Ремень","Масса двигателя"],a:0,why:"Не горит при зажигании — ток возбуждения не идёт по L. Без него генератор не начнёт заряжать."}
 ];
 
 /* ---------- Первый день: обучение ---------- */
@@ -765,6 +877,75 @@ function build(){
   act(tube([[-.35,.71,-.95],[.1,.69,-.975],[.42,.72,-.95],[.5,.7,-.7]],.013,MAT.tape),"hs_dash");
   // свет фар (точки)
   ["E5","E6"].forEach(id=>{const l=new THREE.PointLight(0xfff3c4,0,3.5);l.position.set(P[id],.38,1.3);carG.add(l);MSH.lamp[id].light=l});
+  box(.046,.024,.003,mat(0x07090b,{roughness:.3}),.13,.878,-.9205);
+  MSH.chl=decal("▮ АКБ",.042,.018,.13,.878,-.9225,carG,{font:72,col:"#ff3b30",rx:0,ry:PI});MSH.chl.material.opacity=.06;
+  decal("ЗАРЯД",.036,.009,.13,.858,-.921,carG,{font:50,col:"#8a96a0",rx:0,ry:PI});
+  buildPower();
+}
+/* ---------- Стартер, масса двигателя, генератор ---------- */
+function lugMesh(pos,red){const g=new THREE.Group();g.position.copy(pos);carG.add(g);
+  const eye=new THREE.Mesh(new THREE.TorusGeometry(.009,.0032,8,18),MAT.copper);eye.rotation.y=PI/2;g.add(eye);
+  if(red){const boot=cyl(.008,.016,mat(0xc8322a,{roughness:.6}),0,.016,0,g,12);boot.rotation.z=.25}
+  const nut=cyl(.0075,.007,MAT.metal,-.006,0,0,g,6);nut.rotation.z=PI/2;return {g,eye,nut}}
+function buildPower(){
+  const stM=mat(0x2b3036,{metalness:.6,roughness:.45}),alM=mat(0xb7bec4,{metalness:.7,roughness:.38});
+  // стартер: мотор, втягивающее сверху, фланец с болтами
+  const st=new THREE.Group();st.position.set(-.08,.43,.705);carG.add(st);MSH.st=st;
+  cyl(.042,.17,stM,0,0,0,st,28).rotation.z=PI/2;
+  [-.07,.0,.06].forEach(x=>cyl(.0435,.006,MAT.dark,x,0,0,st,28).rotation.z=PI/2);
+  cyl(.026,.1,mat(0x9aa3ab,{metalness:.8,roughness:.33}),-.025,.055,0,st,24).rotation.z=PI/2;
+  cyl(.027,.008,MAT.black,-.077,.055,0,st,24).rotation.z=PI/2;
+  cyl(.03,.05,MAT.metal,.11,0,0,st,24).rotation.z=PI/2;
+  box(.012,.1,.09,MAT.dark,.088,0,0,st);
+  const sb=[];[[.035,.047],[-.035,.047]].forEach(([y,z])=>{const b=cyl(.008,.012,MAT.metal,.088,y,z,st,6);b.rotation.x=PI/2;sb.push(b)});MSH.stBolts=sb;
+  box(.006,.03,.008,MAT.copper,-.083,.02,-.016,st);cyl(.004,.014,MAT.brass,-.086,.03,-.016,st,8).rotation.z=PI/2;
+  box(.002,.008,.006,MAT.brass,-.084,.055,.022,st);cyl(.005,.02,MAT.brass,-.087,.08,0,st,8).rotation.z=PI/2;
+  decal("30",.012,.008,-.172,.514,.683,carG,{font:110,col:"#f2b600",rx:0,ry:-PI/2});decal("50",.012,.008,-.172,.487,.75,carG,{font:110,col:"#f2b600",rx:0,ry:-PI/2});
+  decal("M",.008,.008,-.172,.45,.668,carG,{font:110,col:"#f2b600",rx:0,ry:-PI/2});
+  st.children.forEach(m=>{if(m.isMesh)m.userData.act="starter"});sb.forEach(b=>b.userData.act="stbolt");
+  // посадочное место стартера на картере сцепления — видно, когда стартер снят
+  const seat=cyl(.052,.02,mat(0x23272b,{roughness:.8}),.03,.43,.705,carG,28);seat.rotation.z=PI/2;act(seat,"starter");
+  const hole=cyl(.031,.022,mat(0x050607),.02,.43,.705,carG,24);hole.rotation.z=PI/2;act(hole,"starter");
+  // плюсовой наконечник на выводе 30 и толстый провод от АКБ
+  MSH.stlug=lugMesh(V3(-.165,.51,.705),true);act(MSH.stlug.g,"stlug");
+  act(tube([[-.56,.6,.5],[-.4,.67,.55],[-.22,.645,.66],[-.18,.565,.70],[-.17,.515,.705]],.009,MAT.wR),"stlug");
+  // разъём 50
+  const c50=new THREE.Group();c50.position.set(-.17,.485,.727);carG.add(c50);box(.016,.014,.014,MAT.black,0,0,0,c50);
+  tube([[-.006,0,0],[-.014,-.02,.02],[-.02,-.07,.045],[-.04,-.13,-.05],[-.1,-.14,-.25]],.0025,mat(0x7a3fb0),c50);act(c50,"st50");MSH.st50=c50;
+  // масса двигателя: косичка с кронштейна блока на крыло рядом с АКБ
+  makeGround("GE",V3(-.66,.851,.33),"y");
+  box(.036,.036,.006,MAT.metal,-.278,.70,.30);cyl(.006,.008,MAT.metal,-.278,.69,.304).rotation.x=PI/2;
+  act(tube([[-.278,.69,.306],[-.42,.79,.32],[-.6,.86,.33],[-.648,.856,.33]],.006,mat(0x8f9498,{metalness:.6,roughness:.5})),"geye:GE");
+  // генератор
+  const al=new THREE.Group();al.position.set(.29,.635,.745);carG.add(al);MSH.alt=al;
+  cyl(.062,.11,alM,0,0,0,al,32).rotation.z=PI/2;
+  for(let i=0;i<10;i++){const a=i/10*2*PI;box(.07,.004,.012,MAT.dark,.01,Math.cos(a)*.061,Math.sin(a)*.061,al).rotation.x=a}
+  cyl(.058,.008,mat(0x2a2e33),-.058,0,0,al,30).rotation.z=PI/2;
+  const pul=new THREE.Group();pul.position.set(.075,0,0);al.add(pul);cyl(.028,.02,MAT.dark,0,0,0,pul,24).rotation.z=PI/2;
+  [0,1,2].forEach(i=>box(.022,.05,.006,MAT.metal,.0,0,0,pul).rotation.x=i*PI/3);MSH.altPul=pul;
+  al.children.forEach(m=>{if(m.isMesh)m.userData.act="alt"});act(pul,"belt");
+  MSH.altlug=lugMesh(V3(.222,.67,.765),true);act(MSH.altlug.g,"altlug");cyl(.004,.018,MAT.brass,.226,.67,.765,carG,8).rotation.z=PI/2;
+  act(tube([[-.56,.6,.5],[-.45,.77,.42],[.1,.77,.42],[.19,.73,.62],[.214,.675,.765]],.0075,MAT.wR),"altlug");
+  const lc=new THREE.Group();lc.position.set(.224,.625,.78);carG.add(lc);box(.012,.016,.014,mat(0x1d2024),0,0,0,lc);
+  tube([[-.006,0,0],[-.04,.03,0],[-.12,.08,-.1],[-.08,.1,-.3]],.0022,mat(0x2a6f3a),lc);act(lc,"altc");MSH.altc=lc;
+  act(box(.003,.036,.042,mat(0x0b0c0e,{roughness:.9}),.2285,.6,.722),"reg");   // гнездо регулятора
+  const rg=new THREE.Group();rg.position.set(.226,.6,.722);carG.add(rg);box(.008,.03,.036,MAT.black,0,0,0,rg);
+  const rs=[];[-.012,.012].forEach(z=>{const s_=cyl(.0045,.006,MAT.metal,-.006,.006,z,rg,8);s_.rotation.z=PI/2;rs.push(s_)});act(rg,"reg");MSH.reg=rg;MSH.regScr=rs;
+  // натяжитель: планка и болт
+  box(.018,.01,.1,MAT.dark,.33,.703,.67);const tb=cyl(.008,.012,MAT.metal,.33,.714,.70,carG,6);act(tb,"tbolt");MSH.tbolt=tb;
+  // шкив коленвала и ремень
+  const cp=new THREE.Group();cp.position.set(.365,.42,.5);carG.add(cp);cyl(.055,.024,MAT.dark,0,0,0,cp,28).rotation.z=PI/2;
+  [0,1].forEach(i=>box(.026,.09,.008,MAT.metal,0,0,0,cp).rotation.x=i*PI/2);MSH.crankPul=cp;act(cp,"belt");
+  MSH.belt=new THREE.Mesh(new THREE.BufferGeometry(),mat(0x141618,{roughness:.9}));carG.add(MSH.belt);act(MSH.belt,"belt");beltGeo(0);
+}
+function beltGeo(sag){
+  const x=.365,a=[.635,.745,.031],c=[.42,.5,.058],pts=[];
+  const arc=(cy,cz,r,a0,a1,n)=>{for(let i=0;i<=n;i++){const t=a0+(a1-a0)*i/n;pts.push(V3(x,cy+Math.sin(t)*r,cz+Math.cos(t)*r))}};
+  arc(a[0],a[1],a[2],-.6,PI+.2,6);              // вокруг шкива генератора сверху
+  pts.push(V3(x,(a[0]+c[0])/2-sag*.6,(a[1]+c[1])/2-.04-sag*.2));
+  arc(c[0],c[1],c[2],PI+.5,2*PI-.4,7);           // вокруг шкива коленвала снизу
+  pts.push(V3(x,(a[0]+c[0])/2+.01,(a[1]+c[1])/2+.05+sag));
+  MSH.belt.geometry.dispose();MSH.belt.geometry=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts,true),80,.0042,6,true);MSH.beltSag=sag;
 }
 function makeFuse(id,x){
   const g=new THREE.Group();g.position.set(x,.66,P.fuseZ);carG.add(g);
@@ -834,9 +1015,9 @@ function buildTPs(){
   tp("K87","K87","box","Гнездо K4, клемма 87",V3(rx,.666,rz-.013),noRel);
   tp("K85","K85","box","Гнездо K4, клемма 85",V3(rx-.013,.666,rz),noRel);
   tp("K86","K86","box","Гнездо K4, клемма 86",V3(rx+.013,.666,rz),noRel);
-  ["G101","G102","G103"].forEach(id=>{const g=MSH.g[id].g;g.updateMatrixWorld(true);
-    const view=id==="G101"?"batt":id==="G102"?"bumpL":"bumpR";
-    tp(id,id,view,`${id}, наконечник провода`,null,()=>car.grounds[id].on);TPS[TPS.length-1].fpos=()=>MSH.g[id].eye.getWorldPosition(V3()).add(id==="G101"?V3(.013,.002,0):V3(.013,0,.003));
+  ["G101","G102","G103","GE"].forEach(id=>{const g=MSH.g[id].g;g.updateMatrixWorld(true);
+    const view=id==="G101"||id==="GE"?"batt":id==="G102"?"bumpL":"bumpR";
+    tp(id,id,view,`${id}, наконечник провода`,null,()=>car.grounds[id].on);TPS[TPS.length-1].fpos=()=>MSH.g[id].eye.getWorldPosition(V3()).add(id==="G101"||id==="GE"?V3(.013,.002,0):V3(.013,0,.003));
     tp(id+"b","GND",view,`Кузов возле ${id}`,g.localToWorld(V3(-.017,.0015,.012)))});
   ["E5","E6"].forEach(id=>{const x=P[id],bv=id==="E5"?"bumpL":"bumpR";
     tp(id+"p",id+"p",bv,`Разъём ${id}, пин «+»`,null);TPS[TPS.length-1].fpos=()=>MSH.lamp[id].conn.localToWorld(V3(-.007,.016,0));
@@ -845,6 +1026,15 @@ function buildTPs(){
   tp("X3c","X3c","bumpL","X3, сторона фар (сзади пина 2)",null);TPS[TPS.length-1].fpos=()=>MSH.x3.r.localToWorld(V3(.021,.005,0));
   tp("S3","S3","cabin","Кнопка S12, вход (пин 3)",null,()=>car.btn.out);TPS[TPS.length-1].fpos=()=>MSH.mod.g.localToWorld(V3(-.012,-.021,.004));
   tp("S5","S5","cabin","Кнопка S12, выход (пин 5)",null,()=>car.btn.out);TPS[TPS.length-1].fpos=()=>MSH.mod.g.localToWorld(V3(.012,-.021,.004));
+  const stOn=()=>car.starter.present;
+  tp("ST30","ST30","start","Стартер, вывод 30 (толстый плюс)",V3(-.178,.51,.705),stOn);
+  tp("ST50","ST50","start","Стартер, вывод 50 (сзади разъёма)",V3(-.181,.485,.727),stOn);
+  tp("STM","STM","start","Стартер, вывод M (на мотор)",V3(-.176,.458,.689),stOn);
+  tp("STg","STg","start","Корпус стартера",V3(-.01,.474,.722),stOn);
+  tp("ENGb","ENG","batt","Двигатель, кронштейн массы",V3(-.284,.713,.304));
+  tp("ALTB","ALTB","alt","Генератор, вывод B+",V3(.212,.67,.765));
+  tp("ALTL","DL","alt","Генератор, разъём L (сзади пина)",V3(.216,.632,.792));
+  tp("ALTc","ENG","alt","Корпус генератора",V3(.30,.699,.745));
   TPS.forEach(t=>{const m=new THREE.Mesh(new THREE.SphereGeometry(.0032,10,8),new THREE.MeshBasicMaterial({color:0x62c3dc,transparent:true,opacity:.9,depthTest:false}));m.renderOrder=5;scene.add(m);t.mark=m});
 }
 const tpPos=t=>t.fpos?t.fpos():t.pos;
@@ -917,6 +1107,9 @@ const VIEWS={
   hood:{name:"Капот",pos:[0,1.9,1.6],tgt:[0,.6,.35],hands:false,W:1.7},
   box:{name:"Блок",pos:[.45,1.0,.84],tgt:[.45,.665,.56],hands:true,W:.34},
   batt:{name:"АКБ и масса",pos:[-.5,1.06,.82],tgt:[-.52,.67,.37],hands:true,W:.42},
+  start:{name:"Стартер",pos:[-.313,.602,.705],tgt:[-.13,.48,.71],hands:true,W:.2},
+  alt:{name:"Генератор",pos:[-.048,.824,.832],tgt:[.26,.64,.74],hands:true,W:.2},
+  belt:{name:"Ремень",pos:[.647,.562,.736],tgt:[.36,.55,.65],hands:true,W:.3},
   bumpL:{name:"ПТФ левая",pos:[-.42,.78,1.62],tgt:[-.42,.47,1.03],hands:true,W:.52},
   bumpR:{name:"ПТФ правая",pos:[.42,.78,1.62],tgt:[.42,.47,1.03],hands:true,W:.52},
   cabin:{name:"Салон",pos:[.2,1.08,-1.45],tgt:[.12,.85,-.9],hands:true,W:.6},
@@ -925,6 +1118,8 @@ const VIEWS={
 let view="front";const camT={from:null,to:null,t:1};
 function setView(v,instant){
   view=v;const V=VIEWS[v];
+  // на узком экране сдвигаем картинку из-под мультиметра (он справа сверху)
+  const rs=renderer.getSize(new THREE.Vector2());if(V.sh&&camera.aspect<.9)camera.setViewOffset(rs.x,rs.y,-V.sh[0]*rs.x,-V.sh[1]*rs.y,rs.x,rs.y);else camera.clearViewOffset();
   const tg=V3(...V.tgt),off=V3(...V.pos).sub(tg),d0=off.length(),hf=2*Math.atan(Math.tan(camera.fov*PI/360)*camera.aspect),need=V.W/2/Math.tan(hf/2)*1.06;
   off.setLength(Math.max(d0,need));
   camT.from={p:camera.position.clone(),t:controls.target.clone()};camT.to={p:tg.clone().add(off),t:tg};camT.t=instant?1:0;
@@ -942,7 +1137,7 @@ let tool="hand",dmmMode="off",inv=[],sel=null,hover=null,hoverTP=null,gesture=nu
 const probes={red:null,blk:"GNDb",active:"red"};
 const ray=new THREE.Raycaster(),mouse=new THREE.Vector2();let px=0,py=0,pointerIn=false;
 const tpById=id=>TPS.find(t=>t.id===id);
-const itemName=it=>it.type==="fuse"?`Предохранитель ${String(it.r).replace(".",",")} А`:it.type==="relay"?"Реле 4-контактное":it.type==="bulb"?"Лампа H11":it.type==="gswitch"?"Концевик бардачка":it.type==="battery"?"Аккумулятор 60 А·ч":"Кнопка ПТФ";
+const itemName=it=>it.type==="starter"?"Стартер":it.type==="regulator"?"Регулятор напряжения":it.type==="fuse"?`Предохранитель ${String(it.r).replace(".",",")} А`:it.type==="relay"?"Реле 4-контактное":it.type==="bulb"?"Лампа H11":it.type==="gswitch"?"Концевик бардачка":it.type==="battery"?"Аккумулятор 60 А·ч":"Кнопка ПТФ";
 const lcf=t=>t?t[0].toLowerCase()+t.slice(1):t;
 const haveTool=id=>!!G.tools[id];
 function toolName(id){return (TOOLS.find(t=>t.id===id)||{}).name||id}
@@ -997,6 +1192,7 @@ function actFor(id,tl){
     if(tl==="light")return look(C.on?(C.turns>=3?`Клемма ${nm} сидит плотно.`:`Клемма ${nm} болтается.`)+(!plus&&car.clamp.dirty>0?" На ней белый налёт окисла.":""):`Клемма ${nm} снята.`+(!plus&&!car.clamp.on?" Цепи обесточены — можно мерить сопротивление.":"")+(!plus&&car.clamp.dirty>0?" Внутри клеммы белый окисел.":""));
     if(tl==="sand"&&!plus){if(car.clamp.on)return {msg:"Чтобы зачистить клемму, сначала сними её."};
       return {label:"Зачистить клемму «−» — шкрябай туда-сюда",g:{type:"scrub",need:600},done:()=>{car.clamp.dirty=0;addTime(3);say("Клемма и вывод зачищены до блеска.","ok")}}}
+    if((tl==="wrench"||tl==="hand")&&car.eng)return {msg:"Мотор работает. Клеммы АКБ на заведённом не трогают: скачок напряжения бьёт по блокам. Сначала заглуши мотор."};
     if(tl==="wrench"){if(!C.on)return {msg:`Клемма ${nm} снята. Сначала надень её на вывод рукой.`};
       if(plus&&car.clamp.on)return {msg:"Стоп! Сначала сними «−». Если ключом на плюсе задеть кузов, будет короткое замыкание с искрами."};
       return {label:`Гайка клеммы ${nm}: по часовой — затянуть, против — ослабить`,g:{type:"rotate",cont:true},state:()=>`Затяжка ${C.turns}/3${C.turns>=3?" · затянута":C.turns===0?" · отпущена, можно снять":""}`,
@@ -1024,6 +1220,67 @@ function actFor(id,tl){
     const it=sel!==null&&inv[sel];
     if(it&&it.type==="battery")return {label:"Поставить АКБ на площадку — дави вниз",g:{type:"drag",axis:[0,-1,0],dist:45},done:()=>{Object.assign(B,{present:true,soc:it.soc,ri:it.ri,dead:it.dead});inv.splice(sel,1);sel=null;SND.thud();addTime(3);say("АКБ на месте. Надень «+», потом «−», и затяни.")}};
     return {msg:"Площадка под АКБ пустая. Выбери аккумулятор в лотке."};}
+  case "stlug":case "altlug":{const L=car[k],st=k==="stlug",nm=st?"на выводе 30 стартера":"на выводе B+ генератора";
+    if(tl==="light")return look(!L.on?`Наконечник ${nm} снят.`:L.turns>=3?`Наконечник ${nm} затянут, следов нагрева нет.`:`Гайка ${nm} ослаблена: наконечник шатается, вокруг потемнело от нагрева.`);
+    if(tl!=="wrench"&&tl!=="hand")return null;
+    if(car.eng)return {msg:"Мотор работает. Заглуши его, прежде чем лезть к силовым проводам."};
+    if(car.clamp.on)return {msg:`Стоп! Это прямой плюс АКБ без предохранителя. Ключ коснётся корпуса — будут искры и сварка. Сначала сними «−» АКБ.`};
+    if(tl==="wrench"){if(!L.on)return {msg:"Наконечник снят. Надень его рукой на шпильку."};
+      return {label:`Гайка ${nm}: по часовой — затянуть`,g:{type:"rotate",cont:true},state:()=>`Затяжка ${L.turns}/3${L.turns>=3?" · затянута":L.turns===0?" · отпущена, наконечник можно снять":""}`,
+        step:d=>{const n=Math.max(0,Math.min(3,L.turns+d));if(n===L.turns){if(d>0)say("Затянуто.");return}L.turns=n;addTime(.4)}}}
+    if(L.on){if(L.turns>0)return {msg:"Наконечник прижат гайкой. Отпусти её ключом (против часовой)."};
+      return {label:"Снять наконечник со шпильки — тяни на себя",g:{type:"drag",axis:[-1,0,0],dist:40},done:()=>{L.on=false;SND.thud();addTime(.5)}}}
+    if(st&&!car.starter.present)return {msg:"Стартера нет. Сначала поставь стартер."};
+    return {label:"Надеть наконечник на шпильку",g:{type:"click"},done:()=>{L.on=true;L.turns=0;SND.thud();addTime(.5);say("Наконечник на месте. Затяни гайку ключом.")}};}
+  case "st50":{const X=car.st50;
+    if(tl==="light")return look(X.plugged?(X.corr>0?"Разъём 50 надет, но из-под него видна зелень окисла.":"Разъём 50 надет плотно."):X.corr>0?"Разъём 50 снят: клемма и наконечник позеленели от окисла.":"Разъём 50 снят, контакт чистый.");
+    if(tl==="spray"){if(X.plugged)return {msg:"Разъём надет. Сними его, потом чисти."};
+      return {label:"Очистить разъём 50 — держи",g:{type:"hold",ms:1400},snd:"hiss",done:()=>{X.corr=0;addTime(2);say("Окисел смыт, контакт блестит.","ok")}}}
+    if(tl!=="hand")return null;
+    if(X.plugged)return {label:"Снять разъём 50 — тяни на себя",g:{type:"drag",axis:[-1,0,0],dist:40},anim:p=>{MSH.st50.position.x=-.17-p*.03},done:()=>{X.plugged=false;SND.plug();addTime(.5)}};
+    if(!car.starter.present)return {msg:"Стартера нет."};
+    return {label:"Надеть разъём 50 — дави",g:{type:"drag",axis:[1,0,0],dist:35},done:()=>{X.plugged=true;SND.plug();addTime(.5)}};}
+  case "starter":case "stbolt":{const S=car.starter;
+    if(tl==="light")return look(S.present?"Стартер: снизу мотор, сверху втягивающее. На торце три вывода: 30 — толстый плюс, 50 — управление, M — перемычка на мотор."+(S.bolts<3?" Болты крепления ослаблены.":""):"Стартер снят, видно посадочное место на коробке.");
+    if(!S.present){if(tl!=="hand")return null;const it=sel!==null&&inv[sel];
+      if(it&&it.type==="starter")return {label:"Поставить стартер на место — дави",g:{type:"drag",axis:[0,1,0],dist:45},done:()=>{Object.assign(S,{present:true,sol:it.sol,bolts:0});inv.splice(sel,1);sel=null;SND.thud();addTime(5);say("Стартер на месте. Затяни болты ключом, потом наконечник 30 и разъём 50.")}};
+      return {msg:"Посадочное место стартера пустое. Выбери стартер в лотке."}}
+    if(tl==="wrench"){if(car.clamp.on)return {msg:"Сначала сними «−» АКБ: рядом вывод 30 — прямой плюс без предохранителя."};
+      return {label:"Болты стартера: по часовой — затянуть",g:{type:"rotate",cont:true},state:()=>`Затяжка ${S.bolts}/3${S.bolts>=3?" · затянуты":S.bolts===0?" · откручены":""}`,
+        step:d=>{const n=Math.max(0,Math.min(3,S.bolts+d));if(n===S.bolts){if(d>0)say("Затянуто.");return}S.bolts=n;addTime(1.5)}}}
+    if(tl!=="hand")return null;
+    if(car.eng)return {msg:"Мотор работает."};
+    if(car.clamp.on)return {msg:"Перед снятием стартера сними «−» АКБ."};
+    if(car.stlug.on||car.st50.plugged)return {msg:car.stlug.on?"На выводе 30 наконечник. Открути гайку и сними его.":"Сними разъём 50."};
+    if(S.bolts>0)return {msg:"Стартер держат болты. Открути их ключом."};
+    return {label:"Вынуть стартер — тяни вниз (тяжёлый)",g:{type:"drag",axis:[0,-1,0],dist:55},anim:p=>{MSH.st.position.y=.43-p*.05},done:()=>{inv.push({type:"starter",sol:S.sol,src:"снят с машины"});S.present=false;SND.thud();addTime(10)}};}
+  case "alt":return tl==="light"?look("Генератор 90 А. Сзади: вывод B+ (толстый красный провод), разъём L и регулятор со щётками на двух винтах. Спереди шкив и ремень."):{msg:"Генератор. Сзади — вывод B+, разъём L и регулятор."};
+  case "altc":{const X=car.altc;
+    if(tl==="light")return look(X.plugged?"Разъём L надет на генератор.":"Разъём L висит рядом — соскочил с генератора. Пин чистый.");
+    if(tl!=="hand")return null;
+    if(X.plugged)return {label:"Снять разъём L — тяни на себя",g:{type:"drag",axis:[-1,0,0],dist:40},anim:p=>{MSH.altc.position.x=.224-p*.03},done:()=>{X.plugged=false;SND.plug();addTime(.5)}};
+    return {label:"Надеть разъём L до щелчка — дави",g:{type:"drag",axis:[1,0,0],dist:35},done:()=>{X.plugged=true;SND.plug();addTime(.5)}};}
+  case "reg":{const R=car.reg;
+    if(tl==="light")return look(R.present?"Регулятор со щётками на задней крышке генератора, два винта."+(R.screws<3?" Винты ослаблены.":""):"Гнездо регулятора пустое, видны контактные кольца ротора.");
+    if(!R.present){if(tl!=="hand")return null;const it=sel!==null&&inv[sel];
+      if(it&&it.type==="regulator")return {label:"Вставить регулятор — дави",g:{type:"drag",axis:[1,0,0],dist:35},done:()=>{Object.assign(R,{present:true,fault:it.fault,screws:0});inv.splice(sel,1);sel=null;SND.plug();addTime(2);say("Регулятор стоит. Затяни винты ключом.")}};
+      return {msg:"Гнездо регулятора пустое. Выбери регулятор в лотке."}}
+    if(tl==="wrench"){if(car.eng)return {msg:"Заглуши мотор."};if(car.clamp.on)return {msg:"Сначала сними «−» АКБ: рядом вывод B+ — прямой плюс."};
+      return {label:"Винты регулятора: по часовой — затянуть",g:{type:"rotate",cont:true},state:()=>`Затяжка ${R.screws}/3${R.screws>=3?" · затянуты":R.screws===0?" · откручены, можно вынуть":""}`,
+        step:d=>{const n=Math.max(0,Math.min(3,R.screws+d));if(n===R.screws){if(d>0)say("Затянуто.");return}R.screws=n;addTime(.5)}}}
+    if(tl!=="hand")return null;
+    if(R.screws>0)return {msg:"Регулятор держат два винта. Открути их ключом."};
+    return {label:"Вынуть регулятор — тяни на себя",g:{type:"drag",axis:[-1,0,0],dist:40},anim:p=>{MSH.reg.position.x=.226-p*.03},done:()=>{inv.push({type:"regulator",fault:R.fault,src:"снят с генератора"});R.present=false;SND.plug();addTime(2)}};}
+  case "tbolt":{const B=car.belt;
+    if(tl==="light")return look(B.turns>=3?"Болт натяжителя затянут.":"Болт натяжителя ослаблен — генератор сдвинулся, ремень провис.");
+    if(tl!=="wrench")return tl==="hand"?{msg:"Болт натяжителя ремня. Крутят ключом."}:null;
+    if(car.eng)return {msg:"Мотор работает — рядом крутится ремень. Заглуши."};
+    return {label:"Натяжитель ремня: по часовой — натянуть",g:{type:"rotate",cont:true},state:()=>`Натяжение ${B.turns}/3${B.turns>=3?" · норма":""}`,
+      step:d=>{const n=Math.max(0,Math.min(3,B.turns+d));if(n===B.turns){if(d>0)say("Ремень натянут, сильнее — сорвёшь подшипник генератора.");return}B.turns=n;addTime(.5)}};}
+  case "belt":{const B=car.belt;
+    if(tl==="light")return look(B.turns>=3?"Ремень целый, натянут, без трещин.":"Ремень провис, рабочая сторона блестит — проскальзывал и свистел.");
+    if(tl!=="hand")return null;if(car.eng)return {msg:"Ремень крутится! Руки убери — заглуши мотор."};
+    return {label:"Нажать на ремень посередине — держи",g:{type:"hold",ms:900},done:()=>{const mm=[40,28,18,9][B.turns];say(`Прогиб около ${mm} мм. Норма — около 10 мм.`+(mm>15?" Слабо натянут.":" Норма."),mm>15?"bad":"ok");logLine(`Прогиб ремня: <b>${mm} мм</b>`);addTime(.5)}};}
   case "bodypt":return tl==="light"?look("Зачищенная точка кузова. Сюда удобно цеплять чёрный щуп."):{msg:"Точка массы на кузове: сюда цепляют чёрный щуп."};
   case "gbolt":case "geye":case "gpad":{
     const g=car.grounds[a];
@@ -1034,7 +1291,7 @@ function actFor(id,tl){
       return {label:`Зачистить площадку ${a} — шкрябай туда-сюда`,g:{type:"scrub",need:700},done:()=>{g.dirty=0;addTime(3);say(`Площадка ${a} и наконечник зачищены до металла.`,"ok")}}}
     if(tl!=="hand")return null;
     if(g.on){if(g.turns>0)return {msg:`Наконечник прижат болтом. Открути его ключом (против часовой).`};
-      return {label:`Снять наконечник ${a}`,g:{type:"drag",axis:a==="G101"?[0,1,0]:[0,0,1],dist:40},done:()=>{g.on=false;addTime(.5)}}}
+      return {label:`Снять наконечник ${a}`,g:{type:"drag",axis:a==="G101"||a==="GE"?[0,1,0]:[0,0,1],dist:40},done:()=>{g.on=false;addTime(.5)}}}
     return {label:`Надеть наконечник на ${a}`,g:{type:"click"},done:()=>{g.on=true;g.turns=0;addTime(.5);say("Наконечник на месте. Затяни болт ключом.")}};}
   case "conn":{const L=car.lamps[a];
     if(tl==="light")return look(L.conn?`Разъём ${a} надет на лампу.`:`Разъём ${a} снят, пины чистые.`);
@@ -1086,8 +1343,9 @@ function actFor(id,tl){
     if(car.spots.RADIO&&!car.spots.RADIO.done)return {msg:"Сначала переделай подключение — оранжевая метка за магнитолой."};
     return {label:"Вставить магнитолу на место",g:{type:"click"},done:()=>{car.radio.out=false;SND.plug();addTime(2)}};}
   case "key":if(tl!=="hand")return null;
-    return car.ign?{label:"Выключить зажигание — против часовой",g:{type:"rotate",need:.8,dir:-1},done:()=>{car.ign=false;SND.click()}}
-      :{label:"Включить зажигание — поверни ключ по часовой",g:{type:"rotate",need:.8,dir:1},done:()=>{car.ign=true;SND.click()}};
+    return {label:car.eng?"Ключ: против часовой — заглушить":car.ign?"Ключ: дальше по часовой — «Старт», против — выключить":"Ключ: по часовой — зажигание",g:{type:"rotate",cont:true,stepAng:.8},rl:["выкл.","вкл. / старт"],
+      state:()=>car.crank?"СТАРТ…":car.eng?"мотор работает":car.ign?"ON — зажигание":"OFF",
+      step:d=>{if(d>0){if(!car.ign){car.ign=true;SND.click()}else crankNow("key")}else{if(car.eng)stopEngine();else if(car.ign){car.ign=false;SND.click()}}}};
   case "hs_bay":case "hs_dash":case "hs_bumper":case "hs_fw":{
     const ws=Object.keys(SPOTS).find(w=>SPOTS[w].seg===k&&car.spots[w]&&!car.spots[w].done);if(ws&&tl!=="light")return actFor("spot:"+ws,tl);
     if(tl!=="light")return {msg:"Жгут проводов. Чтобы его осмотреть, возьми фонарь (5)."};
@@ -1121,8 +1379,8 @@ function moveGesture(){
   const g=G_.spec.g,dx=px-G_.lx,dy=py-G_.ly;G_.lx=px;G_.ly=py;
   if(g.type==="drag"){G_.prog=Math.max(0,Math.min(1,((px-G_.sx)*G_.ax[0]+(py-G_.sy)*G_.ax[1])/g.dist));G_.spec.anim&&G_.spec.anim(G_.prog)}
   else if(g.type==="rotate"){const a=Math.atan2(py-G_.cy,px-G_.cx);let d=a-G_.la;if(d>PI)d-=2*PI;if(d<-PI)d+=2*PI;G_.la=a;const far=Math.hypot(px-G_.cx,py-G_.cy)>=14;const was=G_.far;G_.far=far;if(!far||!was)return;G_.acc+=d;
-    if(g.cont){const q=Math.trunc(G_.acc/(PI/4));if(q!==G_.steps){SND.ratchet();G_.steps=q}const full=Math.trunc(G_.acc/PI);if(full!==(G_.full||0)){G_.spec.step(full>(G_.full||0)?1:-1);G_.full=full}
-      G_.prog=Math.abs(G_.acc%PI)/PI}
+    if(g.cont){const sa=g.stepAng||PI;if(!g.stepAng){const q=Math.trunc(G_.acc/(PI/4));if(q!==G_.steps){SND.ratchet();G_.steps=q}}const full=Math.trunc(G_.acc/sa);if(full!==(G_.full||0)){G_.spec.step(full>(G_.full||0)?1:-1);G_.full=full;changed()}
+      G_.prog=Math.abs(G_.acc%sa)/sa}
     else G_.prog=Math.max(0,Math.min(1,G_.acc*(g.dir||1)/g.need));}
   else if(g.type==="scrub"){G_.len+=Math.hypot(dx,dy);const sd=Math.sign(dx);if(sd&&G_.ldx&&sd!==G_.ldx)G_.rev++;if(sd)G_.ldx=sd;G_.prog=Math.min(1,Math.min(G_.len/g.need,G_.rev/5));if(G_.len%60<4)SND.ratchet()}
   else if(g.type==="hold"){if(Math.hypot(px-G_.sx,py-G_.sy)>60){G_.prog=0;G_.t0=performance.now()}}
@@ -1147,10 +1405,10 @@ function closeRot(){rotAct=null;$("rot").hidden=true;document.body.classList.rem
 function rotSpec(){if(!rotAct||tool!==rotTool)return null;const s=actFor(rotAct,tool);return s&&s.g&&s.g.type==="rotate"?s:null}
 function updRot(){const s=rotSpec();if(!s){closeRot();return}
   $("rotT").textContent=s.label.split(":")[0].split(" — ")[0];
-  if(s.g.cont){$("rotS").textContent=s.state?s.state():"";$("rotLs").textContent="открутить";$("rotRs").textContent="затянуть";$("rotL").disabled=$("rotR").disabled=false}
+  if(s.g.cont){$("rotS").textContent=s.state?s.state():"";$("rotLs").textContent=s.rl?s.rl[0]:"открутить";$("rotRs").textContent=s.rl?s.rl[1]:"затянуть";$("rotL").disabled=$("rotR").disabled=false}
   else{const n=Math.max(2,Math.round(s.g.need/(PI/2)));$("rotS").textContent=`${rotCnt}/${n} · ${s.g.dir>0?"по часовой":"против часовой"}`;$("rotLs").textContent="против часовой";$("rotRs").textContent="по часовой"}}
 function rotTap(d){const s=rotSpec();if(!s){closeRot();return}ac();
-  if(s.g.cont){SND.ratchet();setTimeout(SND.ratchet,70);s.step(d);changed()}
+  if(s.g.cont){if(!s.g.stepAng){SND.ratchet();setTimeout(SND.ratchet,70)}s.step(d);changed()}
   else{const dir=s.g.dir||1;if(d!==dir){say(dir>0?"Не в ту сторону: нужно по часовой.":"Не в ту сторону: нужно против часовой.");return}
     SND.ratchet();rotCnt++;const n=Math.max(2,Math.round(s.g.need/(PI/2)));if(rotCnt>=n){rotCnt=0;s.done();if(s.alt)say(s.alt);changed();if(!rotSpec()||!rotSpec().g.cont){closeRot();return}}}
   updRot()}
@@ -1181,19 +1439,39 @@ function reading(){
 function logLine(t){if(!G.cur)return;G.cur.log=G.cur.log||[];G.cur.log.unshift(t);G.cur.log=G.cur.log.slice(0,40);renderLog()}
 function logReading(){const {R,B}=probeNodes();if(!R||!B)return;const m=reading();if(!m.txt||m.txt==="—")return;
   const md=tool==="lamp"||!haveTool("dmm")?"Контролька":dmmMode==="V"?"V⎓":dmmMode==="R"?"Ω":"Прозвонка";
-  logLine(`${md} · ${R.name} → ${B.name}: <b>${m.txt}${m.u?" "+m.u:""}</b>`);addTime(.5)}
+  logLine(`${car.crank?"При пуске · ":car.eng?"Мотор работает · ":""}${md} · ${R.name} → ${B.name}: <b>${m.txt}${m.u?" "+m.u:""}</b>`);addTime(.5)}
+
+/* ---------- Пуск двигателя ---------- */
+function crankNow(src){
+  if(car.crank)return;
+  if(car.eng){say("Мотор уже работает. Стартер на заведённом не включают — сломаешь шестерню.");return}
+  const mf0=G.mfuse;car.ign=true;car.crank=true;changed();addTime(.3);
+  const cr=LIVE.cr||{},who=(src==="helper"?"Помощник крутит. ":"")+(mf0!==false&&G.mfuse===false?"Хлопок в мультиметре: 200 А стартера сожгли его предохранитель на 10 А. ":"");let msg,cls="bad";
+  if(!car.starter.present||!cr.pull)msg=who+"Тишина. Стартер даже не щёлкнул.";
+  else if(cr.chatter){msg=who+"Щёлк-щёлк-щёлк! Втягивающее дребезжит, мотор не крутит.";SND.chatter()}
+  else if(cr.vm<4){msg=who+"Щёлк! Один громкий щелчок — и тишина. Стартер не крутит.";SND.thunk()}
+  else if(!cr.start){msg=who+"Стартер крутит еле-еле: р-р… р-р… — мотор не схватывает.";SND.crank(.55)}
+  else{msg=who+"Стартер бодро крутит…";cls="";SND.crank(1)}
+  say(msg,cls);if(cr.pull)buzz(60);
+  if(probes.red&&probes.blk&&(tool==="dmm"||tool==="lamp"))logReading();
+  setTimeout(()=>{car.crank=false;if(cr.start){car.eng=true;say("Завелась! Мотор работает."+(src==="helper"?" Помощник оставил его на холостых.":""),"ok");logLine("Пуск: <b>завёлся</b>")}
+    else logLine(`Пуск: <b>${!cr.pull?"тишина":cr.chatter?"щёлк-щёлк":cr.vm<4?"один щелчок":"крутит слабо"}</b>`);changed()},1700);
+}
+function stopEngine(){car.eng=false;car.ign=false;SND.click();say("Мотор заглушен, зажигание выключено.");changed()}
 
 /* ---------- Лоток ---------- */
 function itemState(it){
   if(it.src==="новое"||it.src==="новая")return "новое";
   if(it.type==="fuse")return it.blown?"перегорел — видно по нити":"нить целая";
   if(it.type==="bulb")return it.ok?"спираль целая":"спираль оборвана";
+  if(it.type==="starter")return it.checked?(it.sol==="ok"?"проверен: исправен":"проверен: неисправен"):"не проверен";
+  if(it.type==="regulator")return it.checked?(it.fault==="ok"?"проверен: исправен":"проверен: неисправен"):"не проверен";
   if(it.type==="battery"){if(!it.checked)return "не проверен";const t=loadTest(it);return t.ocv<12.4?`разряжен, ${t.ocv.toFixed(2)} В`:t.v>=9.6?"держит нагрузку":"не держит нагрузку"}
   return it.checked?(it.type==="relay"?(it.coil==="ok"&&it.ct==="ok"?"проверено: исправно":"проверено: неисправно"):(it.ok?"проверена: исправна":"проверена: неисправна")):"не проверено";
 }
 function renderInv(){
   $("invCount").textContent=inv.length?inv.length+" шт.":"";const cn=$("cInvN");if(cn)cn.textContent=inv.length||"";
-  $("invList").innerHTML=inv.length?inv.map((it,i)=>`<button class="item" data-i="${i}" aria-pressed="${sel===i}"><i style="background:${it.type==="fuse"?FUSE_COL[it.r]:it.type==="relay"?"#17191c":it.type==="bulb"?"#e8e2c8":"#3a4148"}"></i><span>${itemName(it)}<small>${it.src} · ${itemState(it)}</small></span></button>`).join("")
+  $("invList").innerHTML=inv.length?inv.map((it,i)=>`<button class="item" data-i="${i}" aria-pressed="${sel===i}"><i style="background:${it.type==="fuse"?FUSE_COL[it.r]:it.type==="relay"?"#17191c":it.type==="bulb"?"#e8e2c8":it.type==="starter"?"#9aa3ab":it.type==="regulator"?"#111":"#3a4148"}"></i><span>${itemName(it)}<small>${it.src} · ${itemState(it)}</small></span></button>`).join("")
     :`<div class="empty">Пусто. Снятые детали и покупки со склада лягут сюда.</div>`;
   $("invList").querySelectorAll(".item").forEach(b=>b.onclick=()=>{const i=+b.dataset.i;sel=sel===i?null:i;if(sel!==null&&tool!=="hand")setTool("hand");renderInv();if(sel!==null){toggleSheet(null);say(`В руке: ${lcf(itemName(inv[sel]))}. Коснись пустого гнезда и вставь.`)}});
   $("bCheck").disabled=sel===null;$("bTrash").disabled=sel===null;
@@ -1206,6 +1484,8 @@ $("bCheck").onclick=()=>{
   else if(it.type==="relay"){if(!dmm)html="<p>Без мультиметра реле не проверить. Можно поменять его местами с таким же реле K2 и посмотреть, заработает ли.</p>";
     else{it.checked=true;html=`<p class="mono">Обмотка 85–86: <b>${it.coil==="ok"?"79.6 Ω":"OL"}</b></p><p class="mono">Подаёшь 12 В на 85–86 с АКБ: <b>${it.coil==="ok"?"щелчок":"тишина"}</b></p><p class="mono">Контакт 30–87 под питанием: <b>${it.coil!=="ok"?"OL":it.ct==="ok"?"0.01 Ω":it.ct==="burnt"?"1.48 Ω — контакт подгорел":"OL"}</b></p>`;if(it.coil==="ok")SND.relay()}}
   else if(it.type==="battery"){const t=loadTest(it);it.checked=true;html=`${dmm?`<p class="mono">Без нагрузки: <b>${t.ocv.toFixed(2)} В</b></p>`:"<p>Без мультиметра напряжение не узнать.</p>"}<p class="mono">Вилка: <b>${t.v.toFixed(1)} В</b> под ~${Math.round(t.I)} А — ${t.ocv<12.4?"разряжен, тест не показателен":t.v>=9.6?"держит":"не держит"}</p>`}
+  else if(it.type==="starter"){it.checked=true;html=`<p class="mono">На столе: 12 В на вывод 50 — <b>щелчок</b></p><p class="mono">Мотор: <b>${it.sol==="ok"?"бодро крутит":"не крутит — контакты втягивающего подгорели"}</b></p>`}
+  else if(it.type==="regulator"){it.checked=true;html=`<p class="mono">Стенд регуляторов: держит <b>${it.fault==="ok"?"14,4 В":"15,6 В — не регулирует"}</b></p><p>Щётки: ${it.fault==="ok"?"длинные, ровные":"износ в норме"}.</p>`}
   else if(it.type==="gswitch"){if(!dmm)html="<p>Без мультиметра концевик не проверить.</p>";else{it.checked=true;html=`<p class="mono">Кнопка отпущена (бардачок открыт): <b>0.05 Ω — свет горит</b></p><p class="mono">Кнопка нажата (бардачок закрыт): <b>${it.ok?"OL — свет гаснет":"0.05 Ω — не размыкается, залип"}</b></p>`}}
   else{if(!dmm)html="<p>Без мультиметра кнопку не проверить.</p>";else{it.checked=true;html=`<p class="mono">Выводы 3–5, кнопка отпущена: <b>OL</b></p><p class="mono">Кнопка нажата: <b>${it.ok?"0.05 Ω":"OL — контакт внутри не замыкается"}</b></p>`}}
   $("chkTitle").textContent="Проверка: "+lcf(itemName(it));$("chkBody").innerHTML=html+`<p>${it.src}.</p>`;$("mCheck").hidden=false;renderInv();save();
@@ -1232,7 +1512,19 @@ function syncCar(dt){
   const cc=car.x3.corr>0?0x3f8f5a:0xb8c0c6;MSH.x3.fl.material.color.set(cc);MSH.x3.fr.material.color.set(cc);
   if(!gesture)MSH.mod.g.position.z+=((car.btn.out?-.98:-.92)-MSH.mod.g.position.z)*k;
   const ledOn=(LIVE.V.S5||0)>6;MSH.mod.led.material.emissive.set(ledOn?0xff9a00:0x000000);
-  MSH.key.rotation.z+=((car.ign?-1.0:0)-MSH.key.rotation.z)*k;
+  MSH.key.rotation.z+=((car.crank?-1.55:car.ign?-1.0:0)-MSH.key.rotation.z)*k;
+  MSH.chl.material.opacity=(LIVE.chl||0)>.06?1:.06;
+  const S=car.starter;if(!gesture)MSH.st.position.y+=((S.present?.43:.33)-MSH.st.position.y)*k;MSH.st.visible=S.present||MSH.st.position.y>.36;
+  MSH.stBolts.forEach(b=>{b.rotation.y=-S.bolts*1.2;b.position.z=.047+(3-S.bolts)*.004});
+  [[car.stlug,MSH.stlug,V3(-.165,.51,.705),V3(-.192,.525,.705)],[car.altlug,MSH.altlug,V3(.222,.67,.765),V3(.195,.685,.765)]].forEach(([L,M,on,off])=>{
+    M.g.position.lerp(L.on?on:off,k);M.nut.position.x=-.006-(3-L.turns)*.003;M.nut.rotation.x=L.turns*1.1});
+  if(!gesture){MSH.st50.position.x+=((car.st50.plugged?-.17:-.2)-MSH.st50.position.x)*k;MSH.altc.position.x+=((car.altc.plugged?.224:.196)-MSH.altc.position.x)*k}
+  MSH.altc.position.y+=((car.altc.plugged?.625:.605)-MSH.altc.position.y)*k;
+  MSH.reg.visible=car.reg.present;if(!gesture)MSH.reg.position.x=.226;MSH.regScr.forEach(r=>{r.position.x=-.006-(3-car.reg.screws)*.003;r.rotation.x=car.reg.screws*1.1});
+  MSH.tbolt.rotation.y=-car.belt.turns*1.2;
+  const sag=car.belt.turns>=3?0:(3-car.belt.turns)*.012;if(Math.abs(sag-(MSH.beltSag||0))>1e-4)beltGeo(sag);
+  const w=car.crank&&LIVE.cr&&LIVE.cr.vm>4?(LIVE.cr.start?9:3):car.eng?16:0;MSH.crankPul.rotation.x-=w*dt;MSH.altPul.rotation.x-=w*dt*(car.belt.turns>=3||!car.eng?2.4:.9);
+  engineSound(car.eng);
   MSH.glid.rotation.x+=((car.glove.open?-1.25:0)-MSH.glid.rotation.x)*k;
   const gOn=Math.abs(LIVE.I.GB||0)>.1;MSH.glamp.material.emissiveIntensity=gOn?1.6:0;MSH.glight.intensity=gOn&&car.glove.open?.8:0;
   MSH.gsw.visible=!!car.glove.sw;
@@ -1259,7 +1551,7 @@ function ammNodes(){if(tool!=="dmm"||dmmMode!=="A"||G.mfuse===false||!probes.red
 function recalc(){
   car.amm=ammNodes();
   const r=solve(car);
-  if(car.amm&&Math.abs(r.I.AMM||0)>10){G.mfuse=false;car.amm=null;SND.pop();buzz(200);say("Хлопок в мультиметре! Ты замкнул амперметром плюс на массу — сгорел его предохранитель. Амперы меряют только в разрыв цепи. Новый — на складе.","bad");logLine("Сгорел предохранитель мультиметра");return recalc()}LIVE={V:r.V,I:r.I,en:r.en,P:{E5:lampP(r.V,"E5p","E5m")*(car.lamps.E5.conn&&car.lamps.E5.bulb&&car.lamps.E5.bulb.ok?1:0),E6:lampP(r.V,"E6p","E6m")*(car.lamps.E6.conn&&car.lamps.E6.bulb&&car.lamps.E6.bulb.ok?1:0)}};
+  if(car.amm&&Math.abs(r.I.AMM||0)>10){G.mfuse=false;car.amm=null;SND.pop();buzz(200);say("Хлопок в мультиметре! Ты замкнул амперметром плюс на массу — сгорел его предохранитель. Амперы меряют только в разрыв цепи. Новый — на складе.","bad");logLine("Сгорел предохранитель мультиметра");return recalc()}LIVE={V:r.V,I:r.I,en:r.en,cr:r.cr,prod:r.prod,chl:Math.abs(r.I.CHL||0),P:{E5:lampP(r.V,"E5p","E5m")*(car.lamps.E5.conn&&car.lamps.E5.bulb&&car.lamps.E5.bulb.ok?1:0),E6:lampP(r.V,"E6p","E6m")*(car.lamps.E6.conn&&car.lamps.E6.bulb&&car.lamps.E6.bulb.ok?1:0)}};
   if(r.en!==prevEn){SND.relay();buzz(15);prevEn=r.en}
   if(lastBlow){SND.pop();buzz(120);say(`Хлопок! Сгорел предохранитель ${lastBlow}.`,"bad");logLine(`Сгорел ${lastBlow}`);lastBlow=null}
   if(car.jumper&&Math.abs(r.I.JMP||0)>60){SND.pop();say("Искры! Перемычка замкнула плюс на массу и отлетела. Так можно сжечь проводку.","bad");car.jumper=null;car.jumperIds=null;recalc()}
@@ -1283,7 +1575,7 @@ const jobOf=()=>G.cur&&JOBS.find(x=>x.id===G.cur.jobId);
 function renderTop(){
   const ri=rankInfo(),j=jobOf();
   $("money").textContent=G.money.toLocaleString("ru-RU")+" ₽";$("rank").textContent=ri.name;
-  $("day").textContent=`День ${G.day} · ${clockStr()}${j?` · ${Math.round(G.cur.time||0)}/${j.norm} мин`:""}`;
+  $("day").textContent=`День ${G.day} · ${clockStr()}${j?` · ${Math.round(G.cur.time||0)}/${j.norm} мин`:""}${car.eng?" · мотор ▶":""}`;
   $("jobline").innerHTML=j?`<span class="t">${G.cur.carName}</span> · «${j.c}»`:G.questDone?"Бокс свободен. Меню → «Заказы».":"Первый день: знакомство с боксом.";
   $("bGive").hidden=!j;
   const n=$("cInvN");if(n)n.textContent=inv.length?inv.length:"";
@@ -1371,6 +1663,7 @@ function setDial(m){
   dl.addEventListener("keydown",e=>{const i=DIAL.findIndex(d=>d[0]===dmmMode);if(e.key==="ArrowRight"||e.key==="ArrowUp")setDial(DIAL[Math.min(DIAL.length-1,i+1)][0]);if(e.key==="ArrowLeft"||e.key==="ArrowDown")setDial(DIAL[Math.max(0,i-1)][0])});
 })();
 $("lR").onclick=()=>{probes.active="red";updMeter()};
+$("bCrank").onclick=()=>{ac();if(car.eng)stopEngine();else crankNow("helper")};
 $("lB").onclick=()=>{probes.active="blk";updMeter();say("Теперь касание точки переставит чёрный щуп.")};
 let lastLcd="",lastAmm="";
 function updMeter(){
@@ -1378,6 +1671,7 @@ function updMeter(){
   const m=reading(),dmm=haveTool("dmm"),lampM=tool==="lamp"||!dmm;
   $("meter").hidden=!(tool==="dmm"||tool==="lamp");$("meter").classList.toggle("lampmode",lampM);
   $("lcdV").textContent=m.txt||"";$("lcdU").textContent=lampM?"":(m.u||"");$("lcd").style.fontSize=lampM?"18px":"";
+  $("bCrank").textContent=car.crank?"КРУТИТ…":car.eng?"ПОМОЩНИК: ЗАГЛУШИ":"ПОМОЩНИК: КРУТИ";
   $("lR").setAttribute("aria-pressed",probes.active==="red");$("lB").setAttribute("aria-pressed",probes.active==="blk");
   const R=probes.red?tpById(probes.red):null,B=probes.blk?tpById(probes.blk):null;
   $("mAt").innerHTML=`Кр: ${R?R.name:hoverTP&&(tool==="dmm"||tool==="lamp")?hoverTP.name:"—"}<br>Чр: ${B?B.name:"—"}`;
@@ -1403,7 +1697,7 @@ $("mSto").onclick=()=>{$("mMenu").hidden=true;openStore()};
 $("bBuy").onclick=openStore;
 $("mSch").onclick=()=>{if(!G.tools.schem){say("Схемы — по подписке. Купи «Базу схем» в магазине.");return}$("mMenu").hidden=true;drawSchem();$("mSchem").hidden=false};
 $("mCar").onclick=()=>{$("mMenu").hidden=true;openCareer()};
-$("mSnd").onclick=()=>{soundOn=!soundOn;if(!soundOn)beep(false);$("mSndS").textContent=soundOn?"включён":"выключен";$("mSnd").setAttribute("aria-pressed",soundOn)};
+$("mSnd").onclick=()=>{soundOn=!soundOn;if(!soundOn){beep(false);engineSound(false)}$("mSndS").textContent=soundOn?"включён":"выключен";$("mSnd").setAttribute("aria-pressed",soundOn)};
 
 function makeBoard(){
   const open=JOBS.filter(jobOpen),b=[],pick=a=>a.splice(Math.floor(Math.random()*a.length),1)[0];
@@ -1433,7 +1727,7 @@ function takeJob(id,cn){
   G.cur={jobId:id,carName:cn,car,inv,time:0,hints:0,returns:0,log:[]};
   if(G.done<2){G.cur.hints=1;G.cur.free=[0]}
   $("mOrders").hidden=true;setView("front");setTool("hand");changed();renderTop();renderNote();renderQuest();
-  say(`${cn} в боксе. «${j.c}» Сначала подтверди жалобу: в салоне включи зажигание и ПТФ.`);
+  say(`${cn} в боксе. «${j.c}» Сначала подтверди жалобу: `+(j.id>=19&&j.id<=21?"в салоне поверни ключ дальше, на «Старт».":j.id>=22?"в салоне заведи мотор и посмотри на лампу заряда.":"в салоне включи зажигание и ПТФ."));
 }
 function openStore(){
   $("parts").innerHTML=PARTS.map(p=>`<div class="ware"><b>${p.name}</b><small>${p.meter?(G.mfuse===false?"предохранитель прибора сгорел — нужен":"стоит целый"):"ляжет в лоток"}</small><button class="btn" data-part="${p.id}" ${G.money<p.price||(p.meter&&G.mfuse!==false)?"disabled":""}>${p.price} ₽</button></div>`).join("");
@@ -1485,16 +1779,30 @@ function evaluate(c0){
     ["Перемычка снята",!c.jumper],
     ["Разъём X3 собран",c.x3.plugged],
     ["Лампы и разъёмы ПТФ на месте",["E5","E6"].every(e=>c.lamps[e].conn&&c.lamps[e].bulb)],
-    ["Массы G101–G103 на месте и затянуты",gr.every(g=>g.on&&g.turns>=3)],
+    ["Массы G101–G103 и масса двигателя GE на месте и затянуты",gr.every(g=>g.on&&g.turns>=3)],
+    ["Стартер на месте: болты, наконечник 30 и разъём 50",c.starter.present&&c.starter.bolts>=3&&c.stlug.on&&c.stlug.turns>=3&&c.st50.plugged],
+    ["Генератор: наконечник B+ затянут, разъём L надет, регулятор стоит",c.altlug.on&&c.altlug.turns>=3&&c.altc.plugged&&c.reg.present&&c.reg.screws>=3],
+    ["Ремень генератора натянут",c.belt.turns>=3],
     ["Кнопка ПТФ стоит в панели",!c.btn.out],
     ["Бардачок закрыт, концевик на месте",!c.glove.open&&!!c.glove.sw],
     ["Магнитола стоит на месте",!c.radio.out]];
-  const t=clone(c);t.ign=true;t.sw=true;t.amm=null;lastBlow=null;const r=solve(t);const blew=lastBlow;lastBlow=null;
+  const t=clone(c);t.ign=true;t.sw=true;t.amm=null;t.eng=false;t.crank=false;lastBlow=null;const r=solve(t);const blew=lastBlow;lastBlow=null;
   const ok5=t.lamps.E5.bulb&&t.lamps.E5.bulb.ok&&t.lamps.E5.conn,ok6=t.lamps.E6.bulb&&t.lamps.E6.bulb.ok&&t.lamps.E6.conn;
   const pL=ok5?lampP(r.V,"E5p","E5m"):0,pR=ok6?lampP(r.V,"E6p","E6m"):0,lit=e=>e>35?"ярко":e>6?"тускло":"не горит";
   checks.push([`Клиент включил ПТФ: левая — ${lit(pL)}, правая — ${lit(pR)}`,pL>35&&pR>35]);
   const d=drainOf(c);checks.push([`Утечка тока на стоянке ${d.toFixed(2)} А (норма до 0,05)`,d<=.05]);
   if(c.batt.present){const lt=loadTest(c.batt);checks.push([`АКБ заряжен: ${lt.ocv.toFixed(2)} В без нагрузки (норма от 12,4)`,lt.ocv>=12.4]);checks.push([`АКБ держит нагрузку: ${lt.v.toFixed(1)} В под вилкой (норма от 9,6)`,lt.v>=9.6])}
+  // пуск и зарядка глазами клиента
+  const base=()=>{const x=clone(c);x.amm=null;x.sw=false;x.crank=false;x.eng=false;x.ign=true;return x};
+  const lampIgn=Math.abs(solve(base()).I.CHL||0)>.06;
+  const ts=base();ts.crank=true;const cr=solve(ts).cr;
+  const sd=!c.starter.present||!cr.pull?"стартер молчит":cr.chatter?"щёлк-щёлк, не крутит":cr.vm<4?"один щелчок":!cr.start?"крутит слабо, не заводится":"завёлся с первого раза";
+  checks.push([`Клиент повернул ключ: ${sd}`,cr.start]);
+  if(cr.start){const tr=base();tr.eng=true;tr.sw=true;const rr=solve(tr),vb=rr.V.Bpost-rr.V.Bm,lampRun=Math.abs(rr.I.CHL||0)>.06;
+    checks.push([`Зарядка на заведённом с ПТФ: ${vb.toFixed(2)} В на АКБ (норма 13,8–14,7)`,vb>=13.8&&vb<=14.7]);
+    checks.push([`Лампа заряда: при зажигании ${lampIgn?"горит":"не горит"}, на заведённом ${lampRun?"горит":"гаснет"}`,lampIgn&&!lampRun])}
+  else checks.push([`Лампа заряда при зажигании ${lampIgn?"горит":"не горит"}`,lampIgn]);
+  lastBlow=null;
   return {checks,ok:checks.every(x=>x[1]),blew,pL,pR,drain:d};
 }
 $("bGive").onclick=()=>{
@@ -1652,5 +1960,3 @@ function updHands(dt){
 start();
 })();
 </script>
-
-</html>
