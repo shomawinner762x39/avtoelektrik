@@ -250,8 +250,8 @@ body.rotting #toast{bottom:calc(290px + var(--sb))}
   <div class="grid" id="jobs"></div>
 </div></div>
 <div class="modal" id="mStore" hidden><div class="card">
-  <div class="cardhead"><div><h2>Склад и магазин</h2><p>Запчасти ложатся в лоток. Нужную запчасть клиент оплатит при сдаче, лишние — за твой счёт. Инструмент — твой, покупаешь один раз.</p></div><button class="btn" data-close>Закрыть</button></div>
-  <h3>Запчасти</h3><div class="grid" id="parts"></div>
+  <div class="cardhead"><div><h2>Склад и магазин</h2><p>Запчасти ложатся в лоток. Под заказ клиент даёт аванс на запчасть — покупка сначала идёт из него, лишнее — за твой счёт. Инструмент — твой, покупаешь один раз.</p></div><button class="btn" data-close>Закрыть</button></div>
+  <h3>Запчасти</h3><div id="advLine" class="mono" style="font-size:12px;color:var(--ink);margin:-4px 0 8px"></div><div class="grid" id="parts"></div>
   <h3>Инструмент</h3><div class="grid" id="toolsShop"></div>
 </div></div>
 <div class="modal" id="mStudy" hidden><div class="card">
@@ -1753,10 +1753,16 @@ function takeJob(id,cn){
   $("mOrders").hidden=true;setView("front");setTool("hand");changed();renderTop();renderNote();renderQuest();
   say(`${cn} в боксе. «${j.c}» Сначала подтверди жалобу: `+(j.id>=19&&j.id<=21?"в салоне поверни ключ дальше, на «Старт».":j.id>=22?"в салоне заведи мотор и посмотри на лампу заряда.":"в салоне включи зажигание и ПТФ."));
 }
+// Аванс клиента на запчасть: клиент платит за деталь заранее, как в настоящем сервисе. Без него нельзя застрять с заказом на дорогую деталь.
+const advLeft=()=>{const j=jobOf();return j?Math.max(0,j.partCost-(G.cur.advUsed||0)):0};
 function openStore(){
-  $("parts").innerHTML=PARTS.map(p=>`<div class="ware"><b>${p.name}</b><small>${p.meter?(G.mfuse===false?"предохранитель прибора сгорел — нужен":"стоит целый"):"ляжет в лоток"}</small><button class="btn" data-part="${p.id}" ${G.money<p.price||(p.meter&&G.mfuse!==false)?"disabled":""}>${p.price} ₽</button></div>`).join("");
+  const adv=advLeft();
+  $("advLine").textContent=G.cur?(jobOf().partCost?`Аванс клиента на запчасть: ${adv.toLocaleString("ru-RU")} ₽ из ${jobOf().partCost.toLocaleString("ru-RU")} ₽. Твои деньги: ${G.money.toLocaleString("ru-RU")} ₽.`:"По этому заказу клиент запчасти не оплачивает: покупаешь на свои."):"";
+  $("parts").innerHTML=PARTS.map(p=>{const can=p.meter?G.money>=p.price:G.money+adv>=p.price,fromAdv=!p.meter&&adv>0?Math.min(adv,p.price):0;
+    return `<div class="ware"><b>${p.name}</b><small>${p.meter?(G.mfuse===false?"предохранитель прибора сгорел — нужен":"стоит целый"):fromAdv?(fromAdv>=p.price?"оплатит аванс клиента":`аванс ${fromAdv} ₽ + твои ${p.price-fromAdv} ₽`):"ляжет в лоток"}</small><button class="btn" data-part="${p.id}" ${!can||(p.meter&&G.mfuse!==false)?"disabled":""}>${p.price} ₽</button></div>`}).join("");
   $("toolsShop").innerHTML=TOOLS.filter(t=>t.price>0).map(t=>`<div class="ware"><b>${t.name}</b><small>${t.desc}</small>${G.tools[t.id]?`<span class="own">есть</span>`:`<button class="btn" data-tool="${t.id}" ${G.money<t.price?"disabled":""}>${t.price.toLocaleString("ru-RU")} ₽</button>`}</div>`).join("");
-  $("parts").querySelectorAll("[data-part]").forEach(b=>b.onclick=()=>{const p=PARTS.find(x=>x.id===b.dataset.part);if(G.money<p.price)return;G.money-=p.price;
+  $("parts").querySelectorAll("[data-part]").forEach(b=>b.onclick=()=>{const p=PARTS.find(x=>x.id===b.dataset.part),adv=p.meter?0:advLeft();if(G.money+adv<p.price)return;
+    const a=Math.min(adv,p.price);if(a)G.cur.advUsed=(G.cur.advUsed||0)+a;G.money-=p.price-a;
     if(p.meter){G.mfuse=true;say("Предохранитель мультиметра заменён.","ok")}else{inv.push(Object.assign(clone(p.item),{src:"новое"}));say(`${p.name} — в лотке.`)}changed();renderTop();openStore()});
   $("toolsShop").querySelectorAll("[data-tool]").forEach(b=>b.onclick=()=>{const t=TOOLS.find(x=>x.id===b.dataset.tool);if(G.money<t.price)return;G.money-=t.price;G.tools[t.id]=1;SND.coin();save();renderTop();renderTools();openStore();say(`Куплено: ${lcf(t.name)}.`,"ok")});
   $("mStore").hidden=false;
@@ -1836,11 +1842,12 @@ $("bGive").onclick=()=>{
   if(ev.ok){
     const ri=rankInfo(),paid=c.paid||0,hf=Math.max(.4,1-.15*paid),tf=c.time<=j.norm?1.1:c.time<=j.norm*2?1:.8,rf=Math.max(.4,Math.pow(.75,c.returns));
     const labor=Math.round(j.pay*hf*tf*rf),mine=Math.round(labor*ri.share);
-    G.clock+=Math.max(0,j.norm*1.2-(c.time||0));G.money+=mine+j.partCost;G.done++;G.dayLog.jobs++;G.dayLog.earn+=mine+j.partCost;SND.coin();buzz([30,40,30]);
+    const refund=Math.max(0,j.partCost-(c.advUsed||0));   // запчасть, купленную на свои, клиент возвращает
+    G.clock+=Math.max(0,j.norm*1.2-(c.time||0));G.money+=mine+refund;G.done++;G.dayLog.jobs++;G.dayLog.earn+=mine+refund;SND.coin();buzz([30,40,30]);
     const notes=[paid?`подсказки: −${paid*15}%`:"",tf>1?"уложился в норму: +10%":tf<1?"сильно дольше нормы: −20%":"",c.returns?`возвратов ${c.returns}: −25% за каждый`:""].filter(Boolean).join(" · ");
     const nr=rankInfo().name;
     G.cur=null;car=freshCar();inv=[];sel=null;probes.red=null;makeBoard();
-    showResult("Машина сдана",list+`<p class="res">Чек за работу ${labor} ₽, твоя доля ${Math.round(ri.share*100)}%: <b>${mine} ₽</b>${j.partCost?` + ${j.partCost} ₽ за запчасть`:""}.</p>${notes?`<p>${notes}</p>`:""}${nr!==ri.name?`<p class="res" style="color:var(--hi)!important">Новое звание: ${nr}! Доля от чека выросла.</p>`:""}`,afterJob);
+    showResult("Машина сдана",list+`<p class="res">Чек за работу ${labor} ₽, твоя доля ${Math.round(ri.share*100)}%: <b>${mine} ₽</b>${refund?` + ${refund} ₽ за запчасть`:j.partCost?" (запчасть оплатил клиент авансом)":""}.</p>${notes?`<p>${notes}</p>`:""}${nr!==ri.name?`<p class="res" style="color:var(--hi)!important">Новое звание: ${nr}! Доля от чека выросла.</p>`:""}`,afterJob);
   }else{
     c.returns++;G.back++;G.dayLog.back++;buzz(150);
     showResult("Клиент вернулся",list+`<p class="res">Машину не приняли. Доделай пункты с ✗ и сдавай снова. Каждый возврат снижает оплату на четверть.${c.returns>=2?" Теперь подсказки бесплатные — наставник поможет.":""}</p>`);
