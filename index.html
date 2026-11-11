@@ -244,7 +244,7 @@ body.rotting #toast{bottom:calc(290px + var(--sb))}
     <button class="btn" id="mCar">Карьера <small id="mCarS"></small></button>
     <button class="btn" id="mSnd" aria-pressed="true">Звук <small id="mSndS">включён</small></button>
   </div>
-</div></div>
+<p id="mVer" class="mono" style="font-size:11px;color:var(--muted);margin:10px 0 0;text-align:center"></p></div></div>
 <div class="modal" id="mOrders" hidden><div class="card">
   <div class="cardhead"><div><h2>Заказы</h2><p id="ordIntro"></p></div><button class="btn" data-close>Закрыть</button></div>
   <div class="grid" id="jobs"></div>
@@ -1571,6 +1571,7 @@ function recalc(){
 function changed(){recalc();renderInv();updMeter();save()}
 
 /* =================== КАРЬЕРА И ИНТЕРФЕЙС =================== */
+const GAME_VER="9 · запчасти под запись";
 const NEWG=()=>({v:2,money:3000,done:0,back:0,tools:{hand:1,lamp:1,wrench:1,light:1},board:null,cur:null,day:1,clock:0,dayLog:{jobs:0,earn:0,back:0},lessons:{},quest:0,questDone:false,own:false,mfuse:true});
 let G=store("garazh_v2")||NEWG();
 function save(){if(G.cur){G.cur.car=car;G.cur.inv=inv}else{G.freeCar=car;G.freeInv=inv}store("garazh_v2",G)}
@@ -1586,7 +1587,7 @@ const jobOf=()=>G.cur&&JOBS.find(x=>x.id===G.cur.jobId);
 /* ---------- Верх, задание, блокнот ---------- */
 function renderTop(){
   const ri=rankInfo(),j=jobOf();
-  $("money").textContent=G.money.toLocaleString("ru-RU")+" ₽";$("rank").textContent=ri.name;
+  $("money").textContent=(G.money<0?"долг ":"")+G.money.toLocaleString("ru-RU")+" ₽";$("money").style.color=G.money<0?"var(--bad)":"";$("rank").textContent=ri.name;
   $("day").textContent=`День ${G.day} · ${clockStr()}${j?` · ${Math.round(G.cur.time||0)}/${j.norm} мин`:""}${car.eng?" · мотор ▶":""}`;
   $("jobline").innerHTML=j?`<span class="t">${G.cur.carName}</span> · «${j.c}»`:G.questDone?"Бокс свободен. Меню → «Заказы».":"Первый день: знакомство с боксом.";
   $("bGive").hidden=!j;
@@ -1713,7 +1714,7 @@ $("resOk").onclick=()=>{$("mResult").hidden=true;const a=showResult.after;showRe
 $("bMenu").onclick=()=>{
   const open=JOBS.filter(jobOpen).length;
   $("mOrdS").textContent=G.cur?"в боксе машина":`${open} видов работ`;$("mStuS").textContent=`${lessonsDone()} из ${LESSONS.length}`;
-  $("mSchS").textContent=G.tools.schem?"открыть":"нужна подписка";$("mCarS").textContent=rankInfo().name;$("mSndS").textContent=soundOn?"включён":"выключен";$("mSnd").setAttribute("aria-pressed",soundOn);
+  $("mSchS").textContent=G.tools.schem?"открыть":"нужна подписка";$("mVer").textContent="Версия игры: "+GAME_VER;$("mCarS").textContent=rankInfo().name;$("mSndS").textContent=soundOn?"включён":"выключен";$("mSnd").setAttribute("aria-pressed",soundOn);
   $("mMenu").hidden=false};
 $("mOrd").onclick=()=>{$("mMenu").hidden=true;openOrders()};
 $("mStu").onclick=()=>{$("mMenu").hidden=true;openStudy()};
@@ -1757,11 +1758,14 @@ function takeJob(id,cn){
 const advLeft=()=>{const j=jobOf();return j?Math.max(0,j.partCost-(G.cur.advUsed||0)):0};
 function openStore(){
   const adv=advLeft();
-  $("advLine").textContent=G.cur?(jobOf().partCost?`Аванс клиента на запчасть: ${adv.toLocaleString("ru-RU")} ₽ из ${jobOf().partCost.toLocaleString("ru-RU")} ₽. Твои деньги: ${G.money.toLocaleString("ru-RU")} ₽.`:"По этому заказу клиент запчасти не оплачивает: покупаешь на свои."):"";
-  $("parts").innerHTML=PARTS.map(p=>{const can=p.meter?G.money>=p.price:G.money+adv>=p.price,fromAdv=!p.meter&&adv>0?Math.min(adv,p.price):0;
-    return `<div class="ware"><b>${p.name}</b><small>${p.meter?(G.mfuse===false?"предохранитель прибора сгорел — нужен":"стоит целый"):fromAdv?(fromAdv>=p.price?"оплатит аванс клиента":`аванс ${fromAdv} ₽ + твои ${p.price-fromAdv} ₽`):"ляжет в лоток"}</small><button class="btn" data-part="${p.id}" ${!can||(p.meter&&G.mfuse!==false)?"disabled":""}>${p.price} ₽</button></div>`}).join("");
+  $("advLine").textContent=G.cur?(jobOf().partCost?`Аванс клиента на запчасть: ${adv.toLocaleString("ru-RU")} ₽ из ${jobOf().partCost.toLocaleString("ru-RU")} ₽.`:"Аванса на запчасти по этому заказу нет.")+` Твои деньги: ${G.money.toLocaleString("ru-RU")} ₽. Не хватает — сервис даст под запись, долг закроется с зарплаты.`:"Бокс пустой: запчасти — только на свои деньги.";
+  const onCar=!!G.cur;
+  $("parts").innerHTML=PARTS.map(p=>{const fromAdv=!p.meter&&adv>0?Math.min(adv,p.price):0,mineNeed=p.price-fromAdv,debt=onCar&&!p.meter&&G.money<mineNeed;
+    const can=p.meter?G.money>=p.price:(onCar||G.money>=p.price);
+    const note=p.meter?(G.mfuse===false?"предохранитель прибора сгорел — нужен":"стоит целый"):fromAdv>=p.price?"оплатит аванс клиента":fromAdv?`аванс ${fromAdv} ₽ + ${debt?"под запись":"твои"} ${mineNeed} ₽`:debt?"денег мало — сервис даст под запись":"ляжет в лоток";
+    return `<div class="ware"><b>${p.name}</b><small>${note}</small><button class="btn" data-part="${p.id}" ${!can||(p.meter&&G.mfuse!==false)?"disabled":""}>${p.price} ₽</button></div>`}).join("");
   $("toolsShop").innerHTML=TOOLS.filter(t=>t.price>0).map(t=>`<div class="ware"><b>${t.name}</b><small>${t.desc}</small>${G.tools[t.id]?`<span class="own">есть</span>`:`<button class="btn" data-tool="${t.id}" ${G.money<t.price?"disabled":""}>${t.price.toLocaleString("ru-RU")} ₽</button>`}</div>`).join("");
-  $("parts").querySelectorAll("[data-part]").forEach(b=>b.onclick=()=>{const p=PARTS.find(x=>x.id===b.dataset.part),adv=p.meter?0:advLeft();if(G.money+adv<p.price)return;
+  $("parts").querySelectorAll("[data-part]").forEach(b=>b.onclick=()=>{const p=PARTS.find(x=>x.id===b.dataset.part),adv=p.meter?0:advLeft();if(p.meter?G.money<p.price:!G.cur&&G.money<p.price)return;
     const a=Math.min(adv,p.price);if(a)G.cur.advUsed=(G.cur.advUsed||0)+a;G.money-=p.price-a;
     if(p.meter){G.mfuse=true;say("Предохранитель мультиметра заменён.","ok")}else{inv.push(Object.assign(clone(p.item),{src:"новое"}));say(`${p.name} — в лотке.`)}changed();renderTop();openStore()});
   $("toolsShop").querySelectorAll("[data-tool]").forEach(b=>b.onclick=()=>{const t=TOOLS.find(x=>x.id===b.dataset.tool);if(G.money<t.price)return;G.money-=t.price;G.tools[t.id]=1;SND.coin();save();renderTop();renderTools();openStore();say(`Куплено: ${lcf(t.name)}.`,"ok")});
